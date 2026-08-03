@@ -37,6 +37,7 @@ model Tenant {
   apiKeys      ApiKey[]
   auditLogs    AuditLog[]
   loginEvents  LoginEvent[]
+  attachments  Attachment[]
 }
 
 model User {
@@ -122,8 +123,11 @@ model Customer {
   name         String
   contactEmail String   @default("")
   // Sensitive pricing info, guarded by the customers:pricing permission.
-  pricingTier  String   @default("standard")
-  ratePerPallet Float   @default(0)
+  // Per-client rate card (activity-based billing).
+  pricingTier   String  @default("standard")
+  ratePerPallet Float   @default(0) // monthly storage, per pallet/lot
+  receivingRate Float   @default(0) // per inbound line received
+  pickRate      Float   @default(0) // per outbound order shipped
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -315,6 +319,25 @@ model AuditLog {
   user   User?  @relation(fields: [userId], references: [id])
 
   @@index([tenantId, createdAt])
+}
+
+/// Document attachments (POs, BOLs, packing lists, photos) linked polymorphically
+/// to any business entity. Files are stored on disk; metadata lives here.
+model Attachment {
+  id           String   @id @default(cuid())
+  tenantId     String
+  entityType   String // order | receipt | inventory | customer
+  entityId     String
+  filename     String // stored filename on disk
+  originalName String
+  mimeType     String   @default("application/octet-stream")
+  size         Int      @default(0)
+  uploadedBy   String   @default("")
+  createdAt    DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, entityType, entityId])
 }
 
 /// Login / security monitoring events (success + failure + IP tracking).

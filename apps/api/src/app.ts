@@ -19,6 +19,8 @@ import { integrationsRouter } from './modules/integrations';
 import { apiKeysRouter } from './modules/apikeys';
 import { auditRouter } from './modules/audit';
 import { aiRouter } from './modules/ai';
+import { attachmentsRouter } from './modules/attachments';
+import { billingRouter } from './modules/billing';
 
 export function createApp() {
   const app = express();
@@ -43,6 +45,8 @@ export function createApp() {
   app.use('/api/api-keys', apiKeysRouter);
   app.use('/api/audit', auditRouter);
   app.use('/api/ai', aiRouter);
+  app.use('/api/attachments', attachmentsRouter);
+  app.use('/api/billing', billingRouter);
 
   app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
 

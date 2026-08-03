@@ -80,10 +80,10 @@ async function createTenant(opts: {
 
   // Customers (with pricing)
   const acme = await prisma.customer.create({
-    data: { tenantId: tenant.id, code: 'CUST-ACME', name: 'Acme Foods', contactEmail: 'ops@acme.example', pricingTier: 'premium', ratePerPallet: 24.5 },
+    data: { tenantId: tenant.id, code: 'CUST-ACME', name: 'Acme Foods', contactEmail: 'ops@acme.example', pricingTier: 'premium', ratePerPallet: 24.5, receivingRate: 3.5, pickRate: 2.75 },
   });
   const nova = await prisma.customer.create({
-    data: { tenantId: tenant.id, code: 'CUST-NOVA', name: 'Nova Retail', contactEmail: 'wh@nova.example', pricingTier: 'standard', ratePerPallet: 18 },
+    data: { tenantId: tenant.id, code: 'CUST-NOVA', name: 'Nova Retail', contactEmail: 'wh@nova.example', pricingTier: 'standard', ratePerPallet: 18, receivingRate: 2.25, pickRate: 1.9 },
   });
 
   // Inventory — weight-based & partial examples straight from the spec.

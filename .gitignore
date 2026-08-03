@@ -18,6 +18,9 @@ coverage/
 *.sqlite
 apps/api/prisma/*.db*
 
+# uploaded attachments (runtime files)
+apps/api/uploads/
+
 # logs
 *.log
 npm-debug.log*

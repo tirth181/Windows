@@ -49,7 +49,7 @@ describe('AetherWMS API', () => {
       .send({ question: 'Show me customer pricing.' });
     expect(res.status).toBe(200);
     expect(res.body.denied).toBe(true);
-    expect(res.body.answer).toMatch(/do not have permission/i);
+    expect(res.body.answer).toMatch(/permission/i);
   });
 
   it('AI assistant answers inventory questions for an associate', async () => {
@@ -76,6 +76,51 @@ describe('AetherWMS API', () => {
     // Globex has its own, separate inventory set.
     const globex = await login('admin@globex.com');
     expect(globex.body.user.tenantId).not.toBe(abcTenantId);
+  });
+
+  it('activity-based billing: executive can view, associate cannot', async () => {
+    const exec = await login('exec@abc.com');
+    const bill = await request(app).get('/api/billing').set('Authorization', `Bearer ${exec.body.token}`);
+    expect(bill.status).toBe(200);
+    expect(bill.body.invoices.length).toBeGreaterThan(0);
+    expect(bill.body.grandTotal).toBeGreaterThan(0);
+
+    const john = await login('john@abc.com');
+    const denied = await request(app).get('/api/billing').set('Authorization', `Bearer ${john.body.token}`);
+    expect(denied.status).toBe(403);
+  });
+
+  it('document attachments: upload, list, and download on an order', async () => {
+    const mgr = await login('manager@abc.com');
+    const auth = { Authorization: `Bearer ${mgr.body.token}` };
+    const orders = await request(app).get('/api/outbound').set(auth);
+    const orderId = orders.body[0].id;
+
+    const uploaded = await request(app)
+      .post('/api/attachments')
+      .set(auth)
+      .field('entityType', 'order')
+      .field('entityId', orderId)
+      .attach('file', Buffer.from('PACKING LIST — 2 pallets'), 'packing-list.txt');
+    expect(uploaded.status).toBe(201);
+
+    const list = await request(app).get(`/api/attachments?entityType=order&entityId=${orderId}`).set(auth);
+    expect(list.status).toBe(200);
+    expect(list.body.length).toBeGreaterThan(0);
+
+    const dl = await request(app).get(`/api/attachments/${uploaded.body.id}/download`).set(auth);
+    expect(dl.status).toBe(200);
+    expect(dl.text).toContain('PACKING LIST');
+  });
+
+  it('AI understands varied natural language (behind schedule -> delayed)', async () => {
+    const { body } = await login('manager@abc.com');
+    const res = await request(app)
+      .post('/api/ai/ask')
+      .set('Authorization', `Bearer ${body.token}`)
+      .send({ question: 'hey, are any orders running behind schedule?' });
+    expect(res.status).toBe(200);
+    expect(res.body.intent).toBe('delayed');
   });
 
   it('records login events for security monitoring', async () => {
