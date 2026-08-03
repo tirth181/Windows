@@ -1,0 +1,29 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+
+# env
+.env
+.env.local
+.env.*.local
+# ...but keep the dev-only, non-secret API env so the app runs out of the box
+!apps/api/.env
+
+# database
+*.db
+*.db-journal
+*.sqlite
+apps/api/prisma/*.db*
+
+# logs
+*.log
+npm-debug.log*
+
+# os / editor
+.DS_Store
+*.swp
+.vscode/
+.idea/

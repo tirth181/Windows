@@ -1,0 +1,335 @@
+// AetherWMS data model — multi-tenant 3PL WMS.
+// Dev uses SQLite for zero-dependency local setup. Production targets PostgreSQL:
+// switch `provider` to "postgresql" and point DATABASE_URL at the cluster.
+// JSON-shaped payloads are stored as TEXT strings so the schema stays portable
+// across SQLite/Postgres without connector-specific Json handling.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// A 3PL company. The root of tenant isolation — every business record carries tenantId.
+model Tenant {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  status        String   @default("active") // active | suspended
+  // Per-tenant data encryption key (envelope key). Demo stores a generated key;
+  // production would wrap this with a KMS/HSM master key.
+  encryptionKey String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users        User[]
+  roles        Role[]
+  warehouses   Warehouse[]
+  customers    Customer[]
+  locations    Location[]
+  inventory    InventoryItem[]
+  receipts     InboundReceipt[]
+  orders       OutboundOrder[]
+  integrations IntegrationConnection[]
+  apiKeys      ApiKey[]
+  auditLogs    AuditLog[]
+  loginEvents  LoginEvent[]
+}
+
+model User {
+  id           String    @id @default(cuid())
+  tenantId     String
+  email        String
+  passwordHash String
+  firstName    String
+  lastName     String
+  status       String    @default("active") // active | disabled
+  mfaEnabled   Boolean   @default(false)
+  mfaSecret    String?
+  lastLoginAt  DateTime?
+  failedLogins Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  roleId           String?
+  role             Role?             @relation(fields: [roleId], references: [id])
+  warehouseAccess  WarehouseAccess[]
+  auditLogs        AuditLog[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+/// A role bundles module/function-level permissions. permissions is a JSON string
+/// array of permission keys (see src/rbac/permissions.ts), or ["*"] for full access.
+model Role {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  description String   @default("")
+  isSystem    Boolean  @default(false)
+  permissions String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users  User[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  tenantId  String
+  code      String
+  name      String
+  address   String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locations  Location[]
+  inventory  InventoryItem[]
+  receipts   InboundReceipt[]
+  orders     OutboundOrder[]
+  access     WarehouseAccess[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+/// Warehouse-level authorization scope for a user (data-level RBAC).
+model WarehouseAccess {
+  id          String @id @default(cuid())
+  userId      String
+  warehouseId String
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, warehouseId])
+}
+
+model Customer {
+  id           String   @id @default(cuid())
+  tenantId     String
+  code         String
+  name         String
+  contactEmail String   @default("")
+  // Sensitive pricing info, guarded by the customers:pricing permission.
+  pricingTier  String   @default("standard")
+  ratePerPallet Float   @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inventory InventoryItem[]
+  receipts  InboundReceipt[]
+  orders    OutboundOrder[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+/// A bin / storage location inside a warehouse.
+model Location {
+  id          String @id @default(cuid())
+  tenantId    String
+  warehouseId String
+  code        String
+  zone        String @default("")
+  type        String @default("rack") // rack | floor | staging | dock
+
+  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warehouse Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  inventory InventoryItem[]
+
+  @@unique([tenantId, warehouseId, code])
+  @@index([tenantId])
+}
+
+/// A unit of stock. Supports weight-based inventory (receivedQty vs remainingQty) and
+/// partial tracking. status drives the operational color-coding in the UI.
+model InventoryItem {
+  id            String   @id @default(cuid())
+  tenantId      String
+  warehouseId   String
+  customerId    String?
+  locationId    String?
+  materialCode  String
+  description   String   @default("")
+  batchNumber   String   @default("")
+  palletId      String   @default("")
+  boxId         String   @default("")
+  unitOfMeasure String   @default("each") // each | lb | kg
+  receivedQty   Float    @default(0)
+  remainingQty  Float    @default(0)
+  status        String   @default("available") // available|reserved|damaged|blocked|quality_hold|partial|empty
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warehouse Warehouse  @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  customer  Customer?  @relation(fields: [customerId], references: [id])
+  location  Location?  @relation(fields: [locationId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, batchNumber])
+  @@index([tenantId, materialCode])
+  @@index([tenantId, status])
+}
+
+model InboundReceipt {
+  id          String   @id @default(cuid())
+  tenantId    String
+  warehouseId String
+  customerId  String?
+  reference   String
+  status      String   @default("draft") // draft | received | putaway | closed
+  notes       String   @default("")
+  createdBy   String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warehouse Warehouse    @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  customer  Customer?    @relation(fields: [customerId], references: [id])
+  lines     ReceiptLine[]
+
+  @@index([tenantId])
+}
+
+model ReceiptLine {
+  id           String @id @default(cuid())
+  receiptId    String
+  materialCode String
+  description  String @default("")
+  batchNumber  String @default("")
+  unitOfMeasure String @default("each")
+  quantity     Float  @default(0)
+
+  receipt InboundReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+}
+
+model OutboundOrder {
+  id          String    @id @default(cuid())
+  tenantId    String
+  warehouseId String
+  customerId  String?
+  orderNumber String
+  status      String    @default("open") // open | picking | picked | shipped | cancelled
+  dueDate     DateTime?
+  notes       String    @default("")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warehouse Warehouse   @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  customer  Customer?   @relation(fields: [customerId], references: [id])
+  lines     OrderLine[]
+
+  @@index([tenantId])
+}
+
+model OrderLine {
+  id           String @id @default(cuid())
+  orderId      String
+  materialCode String
+  batchNumber  String @default("")
+  unitOfMeasure String @default("each")
+  quantity     Float  @default(0)
+  picked       Float  @default(0)
+
+  order OutboundOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+/// A configured integration (REST/SOAP/GraphQL/DB/etc.) built via the no-code builder.
+model IntegrationConnection {
+  id         String   @id @default(cuid())
+  tenantId   String
+  name       String
+  type       String // rest | soap | graphql | webhook | database | file | edi
+  system     String   @default("") // SAP | Oracle ERP | Shopify | ...
+  config     String   @default("{}") // JSON string (endpoint, auth ref, db dsn, ...)
+  schedule   String   @default("manual") // manual | realtime | 5min | hourly | daily
+  status     String   @default("inactive") // inactive | active | error
+  lastSyncAt DateTime?
+  lastStatus String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  mappings FieldMapping[]
+
+  @@index([tenantId])
+}
+
+/// Field mapping row for the integration builder (e.g. SAP MATNR -> materialCode).
+model FieldMapping {
+  id           String @id @default(cuid())
+  connectionId String
+  sourceField  String
+  targetField  String
+  transform    String @default("") // optional transform expression
+
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id             String    @id @default(cuid())
+  tenantId       String
+  name           String
+  prefix         String // non-secret identifying prefix, safe to display
+  keyHash        String // hash of the full secret
+  scopes         String    @default("[]") // JSON string array of permission keys
+  rateLimitPerMin Int      @default(120)
+  revoked        Boolean   @default(false)
+  lastUsedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+/// Immutable audit trail: who / when / what / before / after.
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String?
+  action    String // e.g. inventory.move, user.create, auth.login
+  entity    String   @default("")
+  entityId  String   @default("")
+  before    String?  // JSON string snapshot
+  after     String?  // JSON string snapshot
+  ip        String   @default("")
+  userAgent String   @default("")
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, createdAt])
+}
+
+/// Login / security monitoring events (success + failure + IP tracking).
+model LoginEvent {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  userId    String?
+  email     String
+  success   Boolean
+  reason    String   @default("")
+  ip        String   @default("")
+  userAgent String   @default("")
+  createdAt DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt])
+}
