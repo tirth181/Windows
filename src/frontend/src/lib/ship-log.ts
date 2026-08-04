@@ -1,3 +1,9 @@
+import {
+  buildEmlDocument,
+  documentToEmailAttachment,
+  downloadEml,
+  type EmailAttachment,
+} from "@/lib/compose-email";
 import { formatFileSize, formatShipTo } from "@/lib/ship-to";
 import { printHtmlDocument } from "@/lib/print-document";
 import {
@@ -144,66 +150,181 @@ export function attachmentLabel(order: OutboundOrder): string {
   return order.attachment?.name || "—";
 }
 
+/** Plain-text fallback (mailto cannot carry HTML tables or file attachments). */
 export function buildShipLogEmailContent(
   orders: OutboundOrder[],
   dayKey: string,
   company?: Pick<Warehouse, "code" | "name"> | null,
-): { subject: string; body: string } {
+): { subject: string; body: string; html: string } {
   const label = companyLabel(company, orders[0]?.warehouseName);
   const totals = shipLogTotals(orders);
   const dayLabel = formatDayLabel(dayKey);
+  const attachments = collectShipLogAttachments(orders);
+  const subject = `Ship Log · ${dayLabel} · ${label}`;
 
-  const block =
+  const tableRows =
     orders.length === 0
-      ? "  (no shipments shipped this day)"
+      ? `<tr><td colspan="9" style="padding:10px;text-align:center;color:#64748b">No shipments shipped on this day</td></tr>`
       : orders
-          .map((o, i) => {
+          .map((o) => {
             const shipTo = formatShipTo(o) || "—";
             const att = o.attachment;
-            return [
-              `  ${i + 1}. ${o.orderNumber} — ${o.customerName || "—"}`,
-              `     Shipped: ${formatWhen(o.shippedAt || o.shipDate)}`,
-              `     Carrier: ${o.carrier || "—"} · Tracking: ${o.trackingNumber || "—"}`,
-              `     Ship-to: ${shipTo}`,
-              `     Weight: ${formatWeight(o.totalWeight || 0)} · Pallets: ${o.totalPallets ?? "—"}`,
-              att
-                ? `     Attachment: ${att.name} (${formatFileSize(att.size)}${att.type ? ` · ${att.type}` : ""})`
-                : "     Attachment: (none)",
-            ].join("\n");
+            return `<tr>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec;font-family:ui-monospace,Menlo,monospace">${escapeHtml(o.orderNumber)}</td>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec">${escapeHtml(o.customerName || "—")}</td>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec">${escapeHtml(formatWhen(o.shippedAt || o.shipDate))}</td>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec">${escapeHtml(o.carrier || "—")}</td>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec;font-family:ui-monospace,Menlo,monospace">${escapeHtml(o.trackingNumber || "—")}</td>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec">${escapeHtml(shipTo)}</td>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec;text-align:right">${escapeHtml(formatWeight(o.totalWeight || 0))}</td>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec;text-align:right">${escapeHtml(String(o.totalPallets ?? "—"))}</td>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec;font-family:ui-monospace,Menlo,monospace">${escapeHtml(att?.name || "—")}${
+    att ? `<div style="color:#64748b;font-size:11px">${escapeHtml(formatFileSize(att.size))}</div>` : ""
+  }</td>
+</tr>`;
           })
-          .join("\n\n");
+          .join("\n");
 
-  const attachments = collectShipLogAttachments(orders);
-  const attachmentBlock =
+  const attachmentListHtml =
     attachments.length === 0
-      ? "  (none)"
-      : attachments
+      ? `<p style="color:#64748b;margin:0">No document attachments on shipments for this day.</p>`
+      : `<ul style="margin:0;padding-left:18px">${attachments
           .map(
-            (a, i) =>
-              `  ${i + 1}. ${a.orderNumber} — ${a.attachment.name} (${formatFileSize(a.attachment.size)}${a.attachment.type ? ` · ${a.attachment.type}` : ""})`,
+            (a) =>
+              `<li style="margin-bottom:4px"><strong>${escapeHtml(a.orderNumber)}</strong> — ${escapeHtml(a.attachment.name)} <span style="color:#64748b">(${escapeHtml(formatFileSize(a.attachment.size))}${a.attachment.type ? ` · ${escapeHtml(a.attachment.type)}` : ""})</span>${
+                a.attachment.dataUrl
+                  ? ""
+                  : ' <span style="color:#b45309">(reference stub attached)</span>'
+              }</li>`,
+          )
+          .join("")}</ul>`;
+
+  const html = `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:16px;background:#ffffff;color:#0f172a;font-family:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;font-size:13px;line-height:1.45">
+  <div style="margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #0b1f33">
+    <p style="margin:0;font-size:18px;font-weight:700;color:#0b1f33">LogiForge</p>
+    <p style="margin:2px 0 0;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#64748b">Ship Log · Outbound shipments by day</p>
+  </div>
+  <p style="margin:0 0 4px"><strong>3PL company:</strong> ${escapeHtml(label)}</p>
+  <p style="margin:0 0 12px"><strong>Ship day:</strong> ${escapeHtml(dayLabel)}</p>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead>
+      <tr style="background:#eef3f8">
+        <th align="left" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Order</th>
+        <th align="left" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Customer</th>
+        <th align="left" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Shipped</th>
+        <th align="left" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Carrier</th>
+        <th align="left" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Tracking</th>
+        <th align="left" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Ship-to</th>
+        <th align="right" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Weight</th>
+        <th align="right" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Pallets</th>
+        <th align="left" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Attachment</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${tableRows}
+    </tbody>
+  </table>
+  <p style="margin:12px 0 0">
+    <strong>Totals:</strong>
+    ${totals.shipments} shipment${totals.shipments === 1 ? "" : "s"} ·
+    ${escapeHtml(formatWeight(totals.weight))} ·
+    ${totals.pallets} pallets ·
+    ${totals.lines} lines ·
+    ${attachments.length} attachment${attachments.length === 1 ? "" : "s"}
+  </p>
+  <h2 style="margin:18px 0 8px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#64748b">Document attachments</h2>
+  ${attachmentListHtml}
+  <p style="margin:16px 0 0;color:#64748b;font-size:12px">Outbound packing lists / BOLs are attached to this email when available. — Sent from LogiForge</p>
+</body>
+</html>`;
+
+  // Tab-separated plain text still useful as mailto fallback
+  const plainHeader = [
+    "Order",
+    "Customer",
+    "Shipped",
+    "Carrier",
+    "Tracking",
+    "Ship-to",
+    "Weight",
+    "Pallets",
+    "Attachment",
+  ].join("\t");
+  const plainRows =
+    orders.length === 0
+      ? "(no shipments)"
+      : orders
+          .map((o) =>
+            [
+              o.orderNumber,
+              o.customerName || "—",
+              formatWhen(o.shippedAt || o.shipDate),
+              o.carrier || "—",
+              o.trackingNumber || "—",
+              formatShipTo(o) || "—",
+              formatWeight(o.totalWeight || 0),
+              String(o.totalPallets ?? "—"),
+              o.attachment?.name || "—",
+            ].join("\t"),
           )
           .join("\n");
 
-  const subject = `Ship Log · ${dayLabel} · ${label}`;
   const body = [
-    "LogiForge Ship Log",
-    "Outbound shipments by day",
-    "",
+    "LogiForge Ship Log (table)",
     `3PL company: ${label}`,
     `Ship day: ${dayLabel}`,
     "",
-    "Shipments:",
-    block,
+    plainHeader,
+    plainRows,
     "",
-    "Attachments:",
-    attachmentBlock,
+    `Totals: ${totals.shipments} shipments · ${formatWeight(totals.weight)} · ${totals.pallets} pallets · ${attachments.length} attachments`,
     "",
-    `Totals: ${totals.shipments} shipment${totals.shipments === 1 ? "" : "s"} · ${formatWeight(totals.weight)} · ${totals.pallets} pallets · ${totals.lines} lines · ${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`,
-    "",
+    "Open the downloaded .eml draft for the HTML table and file attachments.",
     "— Sent from LogiForge",
   ].join("\n");
 
-  return { subject, body };
+  return { subject, body, html };
+}
+
+/** Build file parts for the Ship Log email (real files or demo stubs). */
+export function buildShipLogEmailAttachments(
+  orders: OutboundOrder[],
+): EmailAttachment[] {
+  const out: EmailAttachment[] = [];
+  for (const item of collectShipLogAttachments(orders)) {
+    const mapped = documentToEmailAttachment(item.attachment);
+    if (!mapped) continue;
+    if (mapped.dataUrl) {
+      out.push(mapped);
+      continue;
+    }
+    // Demo seed rows often store name/size only — attach a text stub so the file still goes out
+    const stub = [
+      "LogiForge outbound attachment reference",
+      `Order: ${item.orderNumber}`,
+      `Customer: ${item.customerName || "—"}`,
+      `File: ${item.attachment.name}`,
+      `Size: ${formatFileSize(item.attachment.size)}`,
+      `Type: ${item.attachment.type || "—"}`,
+      "",
+      "Original binary was not stored with this demo record.",
+      "Re-attach the document on the outbound order to include the real file next time.",
+      "",
+    ].join("\n");
+    const b64 =
+      typeof btoa !== "undefined"
+        ? btoa(unescape(encodeURIComponent(stub)))
+        : Buffer.from(stub, "utf8").toString("base64");
+    const base = item.attachment.name.replace(/\.[^.]+$/, "") || "attachment";
+    out.push({
+      name: `${item.orderNumber}-${base}-reference.txt`,
+      type: "text/plain",
+      dataUrl: `data:text/plain;base64,${b64}`,
+    });
+  }
+  return out;
 }
 
 export function sendShipLogEmail(
@@ -211,13 +332,18 @@ export function sendShipLogEmail(
   dayKey: string,
   recipients: string[],
   company?: Pick<Warehouse, "code" | "name"> | null,
-  opts?: { openMailClient?: boolean },
-): { to: string[]; subject: string } {
+  opts?: { downloadEml?: boolean; openMailClient?: boolean },
+): { to: string[]; subject: string; attachmentCount: number } {
   const to = normalizeEmailList(recipients);
   if (!to.length) {
     throw new Error("Add at least one valid email address.");
   }
-  const { subject, body } = buildShipLogEmailContent(orders, dayKey, company);
+  const { subject, body, html } = buildShipLogEmailContent(
+    orders,
+    dayKey,
+    company,
+  );
+  const fileAttachments = buildShipLogEmailAttachments(orders);
 
   const entry: ReceiptEmailLog = {
     id: crypto.randomUUID(),
@@ -233,7 +359,20 @@ export function sendShipLogEmail(
     localStorage.setItem(SHIP_LOG_OUTBOX_KEY, JSON.stringify(outbox));
   }
 
-  if (opts?.openMailClient !== false && typeof window !== "undefined") {
+  const shouldDownload = opts?.downloadEml !== false;
+  if (shouldDownload && typeof window !== "undefined") {
+    const eml = buildEmlDocument({
+      to,
+      subject,
+      html,
+      text: body,
+      attachments: fileAttachments,
+    });
+    downloadEml(`ship-log-${dayKey}.eml`, eml);
+  }
+
+  // mailto cannot include HTML tables or binary attachments — optional plain fallback only
+  if (opts?.openMailClient && typeof window !== "undefined") {
     const mailto = `mailto:${to.join(",")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     const a = document.createElement("a");
     a.href = mailto;
@@ -243,7 +382,7 @@ export function sendShipLogEmail(
     a.remove();
   }
 
-  return { to, subject };
+  return { to, subject, attachmentCount: fileAttachments.length };
 }
 
 export function buildShipLogPrintHtml(

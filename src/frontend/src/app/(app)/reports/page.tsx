@@ -277,7 +277,7 @@ export default function ReportsPage() {
         onClose={() => setEmailOpen(false)}
         onSent={(to) =>
           setMessage(
-            `Ship Log emailed to ${to.join(", ")}.`,
+            `Ship Log email draft ready for ${to.join(", ")} — open the downloaded .eml for the table and attachments.`,
           )
         }
       />

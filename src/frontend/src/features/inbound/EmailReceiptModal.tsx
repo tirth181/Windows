@@ -29,7 +29,8 @@ export function EmailReceiptModal({
   const [extra, setExtra] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [openMailClient, setOpenMailClient] = useState(true);
+  const [downloadEmlDraft, setDownloadEmlDraft] = useState(true);
+  const [openMailClient, setOpenMailClient] = useState(false);
 
   const knownUsers = useMemo(() => {
     const users = loadDemoCollection<AppUser>("users", DEMO_USERS);
@@ -72,6 +73,7 @@ export function EmailReceiptModal({
     setSending(true);
     try {
       const result = sendInboundReceiptEmail(load!, allRecipients, {
+        downloadEml: downloadEmlDraft,
         openMailClient,
       });
       onSent?.(result.to);
@@ -92,7 +94,7 @@ export function EmailReceiptModal({
     <Modal
       open={open}
       title={`Email receipt · ${load.loadNumber || "Inbound"}`}
-      description="Send this inbound receipt to one or more email addresses. Defaults come from Settings."
+      description="Downloads an .eml draft with the receipt table and document attachment. Defaults come from Settings."
       onClose={onClose}
       className="max-w-lg"
       footer={
@@ -192,11 +194,20 @@ export function EmailReceiptModal({
         <label className="flex items-center gap-3 text-sm text-[var(--brand-ink)]">
           <input
             type="checkbox"
+            checked={downloadEmlDraft}
+            onChange={(e) => setDownloadEmlDraft(e.target.checked)}
+            className="h-4 w-4 accent-[var(--accent)]"
+          />
+          Download .eml draft (includes attachment)
+        </label>
+        <label className="flex items-center gap-3 text-sm text-[var(--brand-ink)]">
+          <input
+            type="checkbox"
             checked={openMailClient}
             onChange={(e) => setOpenMailClient(e.target.checked)}
             className="h-4 w-4 accent-[var(--accent)]"
           />
-          Also open mail client (mailto)
+          Also open mailto (plain text only — no attachments)
         </label>
 
         {allRecipients.length > 0 ? (

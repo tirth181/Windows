@@ -1,3 +1,11 @@
+import {
+  buildEmlDocument,
+  documentToEmailAttachment,
+  downloadEml,
+  escapeHtml,
+  type EmailAttachment,
+} from "@/lib/compose-email";
+import { formatFileSize } from "@/lib/ship-to";
 import { formatWeight } from "@/lib/utils";
 import type { InboundLoad } from "@/types";
 
@@ -63,6 +71,7 @@ function formatWhen(value?: string): string {
 export function buildReceiptEmailContent(load: InboundLoad): {
   subject: string;
   body: string;
+  html: string;
 } {
   const lines = (load.lines || []).filter((l) => l.materialCode);
   const plant = load.storagePlantName
@@ -74,6 +83,8 @@ export function buildReceiptEmailContent(load: InboundLoad): {
   const totalWeight =
     load.totalWeight ??
     lines.reduce((s, l) => s + (Number(l.weight) || 0), 0);
+  const totalQty = lines.reduce((s, l) => s + (Number(l.quantity) || 0), 0);
+  const totalBoxes = lines.reduce((s, l) => s + (Number(l.boxCount) || 0), 0);
 
   const lineBlock =
     lines.length === 0
@@ -86,6 +97,7 @@ export function buildReceiptEmailContent(load: InboundLoad): {
           .join("\n");
 
   const subject = `Inbound receipt ${load.loadNumber || ""}`.trim();
+  const att = load.attachment;
   const body = [
     "LogiForge inbound receipt",
     "",
@@ -98,21 +110,77 @@ export function buildReceiptEmailContent(load: InboundLoad): {
     `Carrier: ${load.carrier || "—"}`,
     `Trailer #: ${load.trailerNumber || "—"}`,
     load.notes ? `Notes: ${load.notes}` : null,
-    load.attachment?.name
-      ? `Attachment: ${load.attachment.name}`
+    att?.name
+      ? `Attachment: ${att.name} (${formatFileSize(att.size)})`
       : "Attachment: (none)",
     "",
     "Material lines:",
     lineBlock,
     "",
-    `Totals: ${lines.length} lines · ${formatWeight(totalWeight)} · Qty ${lines.reduce((s, l) => s + (Number(l.quantity) || 0), 0)} · Boxes ${lines.reduce((s, l) => s + (Number(l.boxCount) || 0), 0)}`,
+    `Totals: ${lines.length} lines · ${formatWeight(totalWeight)} · Qty ${totalQty} · Boxes ${totalBoxes}`,
     "",
+    "Open the downloaded .eml draft to include the document attachment.",
     "— Sent from LogiForge",
   ]
     .filter((line) => line != null)
     .join("\n");
 
-  return { subject, body };
+  const lineRows =
+    lines.length === 0
+      ? `<tr><td colspan="7" style="padding:10px;text-align:center;color:#64748b">No material lines</td></tr>`
+      : lines
+          .map(
+            (l) => `<tr>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec;font-family:ui-monospace,Menlo,monospace">${escapeHtml(l.materialCode)}</td>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec">${escapeHtml(l.materialDescription || "—")}</td>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec;font-family:ui-monospace,Menlo,monospace">${escapeHtml(l.batchNumber || "—")}</td>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec;font-family:ui-monospace,Menlo,monospace">${escapeHtml(l.locationCode || "—")}</td>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec;text-align:right">${escapeHtml(formatWeight(l.weight))}</td>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec;text-align:right">${escapeHtml(String(l.quantity ?? 0))}</td>
+  <td style="padding:6px 8px;border:1px solid #dbe3ec;text-align:right">${escapeHtml(String(l.boxCount ?? 0))}</td>
+</tr>`,
+          )
+          .join("\n");
+
+  const html = `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:16px;background:#ffffff;color:#0f172a;font-family:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;font-size:13px;line-height:1.45">
+  <div style="margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #0b1f33">
+    <p style="margin:0;font-size:18px;font-weight:700;color:#0b1f33">LogiForge</p>
+    <p style="margin:2px 0 0;font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#64748b">Inbound receipt</p>
+  </div>
+  <p style="margin:0 0 4px"><strong>Load:</strong> ${escapeHtml(load.loadNumber || "—")} · <strong>Status:</strong> ${escapeHtml(load.status)}</p>
+  <p style="margin:0 0 4px"><strong>3PL company:</strong> ${escapeHtml(load.warehouseName || "—")}</p>
+  <p style="margin:0 0 4px"><strong>Storage plant:</strong> ${escapeHtml(plant)}</p>
+  <p style="margin:0 0 4px"><strong>Arrival:</strong> ${escapeHtml(formatWhen(load.arrivalDate))}</p>
+  <p style="margin:0 0 4px"><strong>Supplier:</strong> ${escapeHtml(load.supplierName || "—")}</p>
+  <p style="margin:0 0 4px"><strong>Carrier:</strong> ${escapeHtml(load.carrier || "—")} · <strong>Trailer:</strong> ${escapeHtml(load.trailerNumber || "—")}</p>
+  ${load.notes ? `<p style="margin:0 0 4px"><strong>Notes:</strong> ${escapeHtml(load.notes)}</p>` : ""}
+  <p style="margin:0 0 12px"><strong>Attachment:</strong> ${
+    att?.name
+      ? `${escapeHtml(att.name)} <span style="color:#64748b">(${escapeHtml(formatFileSize(att.size))})</span>`
+      : "(none)"
+  }</p>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead>
+      <tr style="background:#eef3f8">
+        <th align="left" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Material</th>
+        <th align="left" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Description</th>
+        <th align="left" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Batch</th>
+        <th align="left" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Location</th>
+        <th align="right" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Weight</th>
+        <th align="right" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Qty</th>
+        <th align="right" style="padding:6px 8px;border:1px solid #dbe3ec;font-size:10px;text-transform:uppercase;color:#64748b">Boxes</th>
+      </tr>
+    </thead>
+    <tbody>${lineRows}</tbody>
+  </table>
+  <p style="margin:12px 0 0"><strong>Totals:</strong> ${lines.length} lines · ${escapeHtml(formatWeight(totalWeight))} · Qty ${totalQty} · Boxes ${totalBoxes}</p>
+  <p style="margin:16px 0 0;color:#64748b;font-size:12px">Document attachment is included with this email when available. — Sent from LogiForge</p>
+</body>
+</html>`;
+
+  return { subject, body, html };
 }
 
 export interface ReceiptEmailLog {
@@ -139,13 +207,42 @@ export function loadReceiptEmailOutbox(): ReceiptEmailLog[] {
 export function sendInboundReceiptEmail(
   load: InboundLoad,
   recipients: string[],
-  opts?: { openMailClient?: boolean },
-): { to: string[]; subject: string } {
+  opts?: { downloadEml?: boolean; openMailClient?: boolean },
+): { to: string[]; subject: string; attachmentCount: number } {
   const to = normalizeEmailList(recipients);
   if (!to.length) {
     throw new Error("Add at least one valid email address.");
   }
-  const { subject, body } = buildReceiptEmailContent(load);
+  const { subject, body, html } = buildReceiptEmailContent(load);
+
+  const attachments: EmailAttachment[] = [];
+  const mapped = documentToEmailAttachment(load.attachment);
+  if (mapped?.dataUrl) {
+    attachments.push(mapped);
+  } else if (load.attachment?.name) {
+    const stub = [
+      "LogiForge inbound attachment reference",
+      `Load: ${load.loadNumber}`,
+      `File: ${load.attachment.name}`,
+      `Size: ${formatFileSize(load.attachment.size)}`,
+      `Type: ${load.attachment.type || "—"}`,
+      "",
+      "Original binary was not stored with this demo record.",
+      "Re-attach the document on the inbound load to include the real file next time.",
+      "",
+    ].join("\n");
+    const b64 =
+      typeof btoa !== "undefined"
+        ? btoa(unescape(encodeURIComponent(stub)))
+        : Buffer.from(stub, "utf8").toString("base64");
+    const base =
+      load.attachment.name.replace(/\.[^.]+$/, "") || "attachment";
+    attachments.push({
+      name: `${load.loadNumber || "inbound"}-${base}-reference.txt`,
+      type: "text/plain",
+      dataUrl: `data:text/plain;base64,${b64}`,
+    });
+  }
 
   const entry: ReceiptEmailLog = {
     id: crypto.randomUUID(),
@@ -160,9 +257,23 @@ export function sendInboundReceiptEmail(
     localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox));
   }
 
-  if (opts?.openMailClient !== false && typeof window !== "undefined") {
+  if (opts?.downloadEml !== false && typeof window !== "undefined") {
+    const eml = buildEmlDocument({
+      to,
+      subject,
+      html,
+      text: body,
+      attachments,
+    });
+    downloadEml(
+      `inbound-${(load.loadNumber || load.id).replace(/[^\w.-]+/g, "_")}.eml`,
+      eml,
+    );
+  }
+
+  // mailto cannot include HTML or binary attachments — optional plain fallback only
+  if (opts?.openMailClient && typeof window !== "undefined") {
     const mailto = `mailto:${to.join(",")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    // Prefer a temporary anchor so we don't navigate away from the SPA
     const a = document.createElement("a");
     a.href = mailto;
     a.style.display = "none";
@@ -171,5 +282,5 @@ export function sendInboundReceiptEmail(
     a.remove();
   }
 
-  return { to, subject };
+  return { to, subject, attachmentCount: attachments.length };
 }

@@ -33,7 +33,8 @@ export function EmailShipLogModal({
   const [extra, setExtra] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [openMailClient, setOpenMailClient] = useState(true);
+  const [downloadEmlDraft, setDownloadEmlDraft] = useState(true);
+  const [openMailClient, setOpenMailClient] = useState(false);
 
   const knownUsers = useMemo(() => {
     const users = loadDemoCollection<AppUser>("users", DEMO_USERS);
@@ -77,7 +78,7 @@ export function EmailShipLogModal({
         dayKey,
         allRecipients,
         company,
-        { openMailClient },
+        { downloadEml: downloadEmlDraft, openMailClient },
       );
       onSent?.(result.to);
       onClose();
@@ -99,7 +100,7 @@ export function EmailShipLogModal({
     <Modal
       open={open}
       title={`Email Ship Log · ${dayKey}`}
-      description={`Send the Ship Log for ${label} to one or more email addresses. Defaults come from Settings.`}
+      description={`Downloads an .eml draft with the Ship Log as an HTML table and all outbound attachments for ${label}.`}
       onClose={onClose}
       className="max-w-lg"
       footer={
@@ -127,8 +128,8 @@ export function EmailShipLogModal({
 
         <p className="text-sm text-[var(--muted)]">
           Includes {orders.length} shipment
-          {orders.length === 1 ? "" : "s"} shipped on {dayKey}, with outbound
-          attachment names listed in the email body.
+          {orders.length === 1 ? "" : "s"} shipped on {dayKey} in table format,
+          plus outbound document attachments in the email draft.
         </p>
 
         <div>
@@ -205,11 +206,20 @@ export function EmailShipLogModal({
         <label className="flex items-center gap-3 text-sm text-[var(--brand-ink)]">
           <input
             type="checkbox"
+            checked={downloadEmlDraft}
+            onChange={(e) => setDownloadEmlDraft(e.target.checked)}
+            className="h-4 w-4 accent-[var(--accent)]"
+          />
+          Download .eml draft (HTML table + attachments)
+        </label>
+        <label className="flex items-center gap-3 text-sm text-[var(--brand-ink)]">
+          <input
+            type="checkbox"
             checked={openMailClient}
             onChange={(e) => setOpenMailClient(e.target.checked)}
             className="h-4 w-4 accent-[var(--accent)]"
           />
-          Also open mail client (mailto)
+          Also open mailto (plain text only — no attachments)
         </label>
 
         {allRecipients.length > 0 ? (
