@@ -504,7 +504,7 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
               ),
             );
           }}
-          disabled={readOnly || plantOptions.length === 0}
+          disabled={readOnly}
           placeholder={
             plantOptions.length === 0
               ? "No plants configured — add under Storage Plants"
