@@ -100,7 +100,7 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
     setArrivalDate(new Date().toISOString().slice(0, 16));
   }, [loadId]);
 
-  // Keep storage location valid when 3PL company changes
+  // Keep storage plant valid when 3PL company changes
   useEffect(() => {
     const stillValid = DEMO_LOCATIONS.some(
       (l) => l.id === storageLocationId && l.warehouseId === warehouseId,
@@ -409,14 +409,14 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
           }))}
         />
         <Select
-          label="Storage Location"
+          label="Storage Plant"
           value={storageLocationId}
           onChange={(e) => {
             const nextId = e.target.value;
             setStorageLocationId(nextId);
             const code = DEMO_LOCATIONS.find((l) => l.id === nextId)?.code;
             if (!code || readOnly) return;
-            // Prefill empty line putaway codes from the header storage location
+            // Prefill empty line putaway codes from the header storage plant
             setLines((prev) =>
               prev.map((line) =>
                 line.locationCode ? line : { ...line, locationCode: code },
