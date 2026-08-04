@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   FileText,
+  Mail,
   Pencil,
   Plus,
   Printer,
@@ -31,6 +32,7 @@ import {
 import { formatWeight } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 import { InboundReceiptPreview } from "@/features/inbound/InboundReceiptPreview";
+import { EmailReceiptModal } from "@/features/inbound/EmailReceiptModal";
 
 export default function InboundPage() {
   const router = useRouter();
@@ -55,6 +57,7 @@ export default function InboundPage() {
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [previewLoad, setPreviewLoad] = useState<InboundLoad | null>(null);
+  const [emailLoad, setEmailLoad] = useState<InboundLoad | null>(null);
   const [busyAction, setBusyAction] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -142,6 +145,17 @@ export default function InboundPage() {
     }
   }
 
+  async function handleEmail(row: InboundLoad) {
+    setBusyAction(true);
+    try {
+      const full = await resolveFullLoad(row);
+      setSelectedLoad(null);
+      setEmailLoad(full);
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
   function handleEdit(row: InboundLoad) {
     setSelectedLoad(null);
     router.push(`/inbound/${row.id}`);
@@ -178,7 +192,7 @@ export default function InboundPage() {
     <div className="space-y-4">
       <PageHeader
         title="Inbound"
-        description="Click a load to Print, Preview, Edit, or Delete."
+        description="Click a load to Print, Preview, Email, Edit, or Delete."
         actions={
           canCreate ? (
             <Link href="/inbound/new">
@@ -268,7 +282,7 @@ export default function InboundPage() {
 
       <div className="flex gap-2 text-xs text-[var(--muted)]">
         <Badge tone="steel">{rows.length} loads</Badge>
-        <span>Click any load for Print, Preview, Edit, or Delete.</span>
+        <span>Click any load for Print, Preview, Email, Edit, or Delete.</span>
       </div>
 
       <Modal
@@ -352,6 +366,16 @@ export default function InboundPage() {
               </Button>
               <Button
                 type="button"
+                variant="outline"
+                size="lg"
+                disabled={busyAction}
+                onClick={() => void handleEmail(selectedLoad)}
+              >
+                <Mail className="h-4 w-4" />
+                Email
+              </Button>
+              <Button
+                type="button"
                 size="lg"
                 disabled={busyAction || !canEditRow(selectedLoad)}
                 title={
@@ -368,7 +392,7 @@ export default function InboundPage() {
                 type="button"
                 variant="outline"
                 size="lg"
-                className="text-[var(--danger)] hover:bg-[var(--danger)]/5"
+                className="text-[var(--danger)] hover:bg-[var(--danger)]/5 sm:col-span-2"
                 disabled={busyAction || !canDeleteRow(selectedLoad)}
                 title={
                   canDeleteRow(selectedLoad)
@@ -423,6 +447,19 @@ export default function InboundPage() {
         open={Boolean(previewLoad)}
         load={previewLoad}
         onClose={() => setPreviewLoad(null)}
+        onEmail={(load) => {
+          setPreviewLoad(null);
+          setEmailLoad(load);
+        }}
+      />
+
+      <EmailReceiptModal
+        open={Boolean(emailLoad)}
+        load={emailLoad}
+        onClose={() => setEmailLoad(null)}
+        onSent={(to) => {
+          setMessage(`Receipt emailed to ${to.join(", ")}.`);
+        }}
       />
     </div>
   );

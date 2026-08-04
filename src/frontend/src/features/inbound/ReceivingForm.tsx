@@ -16,6 +16,7 @@ import {
   Trash2,
   Eye,
   Paperclip,
+  Mail,
   Pencil,
   Printer,
   X,
@@ -45,6 +46,7 @@ import type {
 } from "@/types";
 import { useAuthStore } from "@/stores/auth-store";
 import { InboundReceiptPreview } from "./InboundReceiptPreview";
+import { EmailReceiptModal } from "./EmailReceiptModal";
 
 const MAX_ATTACHMENT_BYTES = 1.5 * 1024 * 1024;
 const ATTACHMENT_ACCEPT =
@@ -140,6 +142,8 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoad, setPreviewLoad] = useState<InboundLoad | null>(null);
   const [previewAfterSave, setPreviewAfterSave] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailLoad, setEmailLoad] = useState<InboundLoad | null>(null);
 
   // Admins may still edit received loads; cancelled stays locked for everyone
   const canAdminEditReceived = isAdmin && status === "Received";
@@ -456,6 +460,12 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
   function handlePrint() {
     if (!canSave && !loadId && !loadNumber) return;
     printInboundReceipt(buildReceiptSnapshot(status));
+  }
+
+  function handleEmail() {
+    if (!canSave && !loadId && !loadNumber) return;
+    setEmailLoad(buildReceiptSnapshot(status));
+    setEmailOpen(true);
   }
 
   async function handleSave() {
@@ -778,6 +788,16 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
             <Eye className="h-4 w-4" />
             Preview
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            disabled={!canSave && !loadNumber}
+            onClick={handleEmail}
+          >
+            <Mail className="h-4 w-4" />
+            Email
+          </Button>
           {isEdit && viewOnly && canEditThisLoad && (canEdit || canAdminEditReceived) ? (
             <Button
               type="button"
@@ -885,6 +905,20 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
               }
             : undefined
         }
+        onEmail={(load) => {
+          setPreviewOpen(false);
+          setEmailLoad(load);
+          setEmailOpen(true);
+        }}
+      />
+
+      <EmailReceiptModal
+        open={emailOpen}
+        load={emailLoad}
+        onClose={() => setEmailOpen(false)}
+        onSent={(to) => {
+          setMessage(`Receipt emailed to ${to.join(", ")}.`);
+        }}
       />
     </div>
   );

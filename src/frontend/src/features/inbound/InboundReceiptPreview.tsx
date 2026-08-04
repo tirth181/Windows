@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Paperclip, Printer } from "lucide-react";
+import { FileText, Mail, Paperclip, Printer } from "lucide-react";
 import { Button, Modal, StatusBadge } from "@/components/ui";
 import { formatFileSize } from "@/lib/ship-to";
 import { printInboundReceipt } from "@/lib/print-document";
@@ -36,12 +36,14 @@ export function InboundReceiptPreview({
   load,
   onClose,
   onDone,
+  onEmail,
 }: {
   open: boolean;
   load: InboundLoad | null;
   onClose: () => void;
   /** Optional primary close after save (e.g. return to list). */
   onDone?: () => void;
+  onEmail?: (load: InboundLoad) => void;
 }) {
   if (!load) return null;
 
@@ -61,7 +63,7 @@ export function InboundReceiptPreview({
     <Modal
       open={open}
       title={`Receipt preview · ${load.loadNumber || "Inbound"}`}
-      description="Review the full receipt, then print or save as PDF."
+      description="Review the full receipt, then print, email, or save as PDF."
       onClose={onClose}
       className="max-w-4xl"
       footer={
@@ -72,6 +74,16 @@ export function InboundReceiptPreview({
           {onDone ? (
             <Button type="button" variant="secondary" onClick={onDone}>
               Done
+            </Button>
+          ) : null}
+          {onEmail ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onEmail(load)}
+            >
+              <Mail className="h-4 w-4" />
+              Email
             </Button>
           ) : null}
           <Button type="button" variant="outline" onClick={handlePrintOrPdf}>
