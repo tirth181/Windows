@@ -11,7 +11,7 @@ import {
 } from "ag-grid-community";
 import { Download, SlidersHorizontal } from "lucide-react";
 import { apiFetch, apiFetchOrDemo } from "@/lib/api";
-import { DEMO_CUSTOMERS, DEMO_INVENTORY } from "@/lib/mock-data";
+import { DEMO_INVENTORY } from "@/lib/mock-data";
 import { loadDemoCollection, upsertDemoItem } from "@/lib/demo-store";
 import type { InventoryItem, InventoryStatus } from "@/types";
 import {
@@ -58,7 +58,6 @@ export function InventoryGrid() {
   const [demo, setDemo] = useState(true);
   const [material, setMaterial] = useState("");
   const [batch, setBatch] = useState("");
-  const [customerId, setCustomerId] = useState("");
   const [location, setLocation] = useState("");
   const [pallet, setPallet] = useState("");
   const [status, setStatus] = useState("");
@@ -160,7 +159,6 @@ export function InventoryGrid() {
         return false;
       }
       if (batch && !row.batchNumber.toLowerCase().includes(batch.toLowerCase())) return false;
-      if (customerId && row.customerId !== customerId) return false;
       if (myCompanyId && row.warehouseId !== myCompanyId) return false;
       if (location && !(row.locationCode || "").toLowerCase().includes(location.toLowerCase())) {
         return false;
@@ -171,7 +169,7 @@ export function InventoryGrid() {
       if (status && row.status !== (status as InventoryStatus)) return false;
       return true;
     });
-  }, [rows, material, batch, customerId, myCompanyId, location, pallet, status]);
+  }, [rows, material, batch, myCompanyId, location, pallet, status]);
 
   const columnDefs = useMemo<ColDef<InventoryItem>[]>(
     () => [
@@ -191,9 +189,14 @@ export function InventoryGrid() {
         minWidth: 120,
         cellClass: "font-mono text-xs",
       },
-      { field: "customerName", headerName: "Customer", flex: 1.1, minWidth: 140 },
+      {
+        field: "locationCode",
+        headerName: "Storage Location",
+        flex: 1.1,
+        minWidth: 130,
+        cellClass: "font-mono text-xs",
+      },
       { field: "warehouseName", headerName: "3PL company", flex: 1, minWidth: 120 },
-      { field: "locationCode", headerName: "Slot", flex: 0.9, minWidth: 100 },
       {
         field: "remainingWeight",
         headerName: "Remaining lbs",
@@ -207,13 +210,6 @@ export function InventoryGrid() {
         type: "numericColumn",
         flex: 0.7,
         minWidth: 80,
-      },
-      {
-        field: "boxCount",
-        headerName: "Boxes/drums",
-        type: "numericColumn",
-        flex: 0.9,
-        minWidth: 120,
       },
       {
         field: "status",
@@ -281,14 +277,12 @@ export function InventoryGrid() {
           placeholder="Batch number"
           className="font-[family-name:var(--font-mono)]"
         />
-        <Select
-          label="Customer"
-          value={customerId}
-          onChange={(e) => setCustomerId(e.target.value)}
-          options={[
-            { value: "", label: "All customers" },
-            ...DEMO_CUSTOMERS.map((c) => ({ value: c.id, label: c.name })),
-          ]}
+        <Input
+          label="Storage Location"
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          placeholder="Storage location code"
+          className="font-[family-name:var(--font-mono)]"
         />
         <Input
           label="3PL company"
@@ -299,26 +293,18 @@ export function InventoryGrid() {
           disabled
         />
         <Input
-          label="Slot"
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-          placeholder="Slot code"
-        />
-        <Input
           label="Pallet"
           value={pallet}
           onChange={(e) => setPallet(e.target.value)}
           placeholder="Pallet ID"
           className="font-[family-name:var(--font-mono)]"
         />
-        <div className="xl:col-span-2">
-          <Select
-            label="Status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            options={STATUS_OPTIONS}
-          />
-        </div>
+        <Select
+          label="Status"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          options={STATUS_OPTIONS}
+        />
       </div>
 
       <p className="text-sm text-[var(--muted)]">

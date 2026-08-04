@@ -629,7 +629,7 @@ export const DEMO_REPORTS: ReportDefinition[] = [
     id: "rpt-1",
     name: "Daily Inventory Snapshot",
     category: "Inventory",
-    description: "On-hand by customer, material, and slot.",
+    description: "On-hand by material and storage location.",
     lastRunAt: "2026-08-04T06:00:00Z",
   },
   {
