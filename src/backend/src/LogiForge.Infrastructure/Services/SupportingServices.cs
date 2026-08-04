@@ -21,8 +21,22 @@ public class AuditService : IAuditService
         _tenant = tenant;
     }
 
+    private static readonly JsonSerializerOptions AuditJsonOptions = new()
+    {
+        ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles,
+        WriteIndented = false,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    };
+
     public async Task WriteAsync(string action, string entityType, Guid? entityId, object? before, object? after, CancellationToken ct = default)
     {
+        string? Safe(object? value)
+        {
+            if (value is null) return null;
+            try { return JsonSerializer.Serialize(value, AuditJsonOptions); }
+            catch { return value.ToString(); }
+        }
+
         _db.AuditLogs.Add(new AuditLog
         {
             CompanyId = _tenant.CompanyId,
@@ -30,8 +44,8 @@ public class AuditService : IAuditService
             Action = action,
             EntityType = entityType,
             EntityId = entityId,
-            BeforeJson = before is null ? null : JsonSerializer.Serialize(before),
-            AfterJson = after is null ? null : JsonSerializer.Serialize(after),
+            BeforeJson = Safe(before),
+            AfterJson = Safe(after),
             OccurredAt = DateTime.UtcNow
         });
         await _db.SaveChangesAsync(ct);
@@ -202,7 +216,11 @@ public class PermissionAwareAiAssistantService : IAiAssistantService
 
         if (msg.Contains("batch") && _tenant.HasPermission(Domain.Common.PermissionCodes.InventoryView))
         {
-            var batchToken = message.Split(' ', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? "";
+            var batchToken = System.Text.RegularExpressions.Regex.Match(
+                message, @"\bB[\w-]+\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Value;
+            if (string.IsNullOrWhiteSpace(batchToken))
+                batchToken = new string(message.Split(' ', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?
+                    .Where(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_').ToArray() ?? []);
             var item = await _db.InventoryItems
                 .Include(i => i.Location).Include(i => i.Warehouse)
                 .Where(i => i.BatchNumber.ToLower().Contains(batchToken.ToLower()))
