@@ -16,6 +16,8 @@ import {
   Trash2,
   Eye,
   Paperclip,
+  Pencil,
+  Printer,
   X,
 } from "lucide-react";
 import { Button, Input, Select, PageHeader, Modal } from "@/components/ui";
@@ -32,6 +34,7 @@ import {
   findStoragePlant,
   plantsForCompany,
 } from "@/lib/storage-plants";
+import { printInboundReceipt } from "@/lib/print-document";
 import { formatFileSize } from "@/lib/ship-to";
 import { formatWeight } from "@/lib/utils";
 import type {
@@ -446,8 +449,13 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
   }
 
   function handlePreview() {
-    if (!canSave && !loadId) return;
+    if (!canSave && !loadId && !loadNumber) return;
     openPreview(buildReceiptSnapshot(status), false);
+  }
+
+  function handlePrint() {
+    if (!canSave && !loadId && !loadNumber) return;
+    printInboundReceipt(buildReceiptSnapshot(status));
   }
 
   async function handleSave() {
@@ -750,6 +758,36 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
           <Button variant="outline" type="button" onClick={() => router.push("/inbound")}>
             Back
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            disabled={!canSave && !loadNumber}
+            onClick={handlePrint}
+          >
+            <Printer className="h-4 w-4" />
+            Print
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            disabled={!canSave && !loadNumber}
+            onClick={handlePreview}
+          >
+            <Eye className="h-4 w-4" />
+            Preview
+          </Button>
+          {isEdit && viewOnly && canEditThisLoad && (canEdit || canAdminEditReceived) ? (
+            <Button
+              type="button"
+              size="lg"
+              onClick={() => loadId && router.push(`/inbound/${loadId}`)}
+            >
+              <Pencil className="h-4 w-4" />
+              Edit
+            </Button>
+          ) : null}
           {canDeleteThisLoad ? (
             <Button
               type="button"
@@ -763,25 +801,6 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
               Delete
             </Button>
           ) : null}
-          {viewOnly && canEditThisLoad && (canEdit || canAdminEditReceived) ? (
-            <Button
-              type="button"
-              size="lg"
-              onClick={() => loadId && router.push(`/inbound/${loadId}`)}
-            >
-              Edit
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            disabled={!canSave && !loadNumber}
-            onClick={handlePreview}
-          >
-            <Eye className="h-4 w-4" />
-            Preview
-          </Button>
           {!readOnly ? (
             <Button
               variant="secondary"

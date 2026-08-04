@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Eye, FileText, Pencil, Plus, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  FileText,
+  Pencil,
+  Plus,
+  Printer,
+  Trash2,
+} from "lucide-react";
 import { apiFetch, apiFetchOrDemo } from "@/lib/api";
 import { DEMO_INBOUND } from "@/lib/mock-data";
 import {
@@ -10,6 +17,7 @@ import {
   loadDemoCollection,
   saveDemoCollection,
 } from "@/lib/demo-store";
+import { printInboundReceipt } from "@/lib/print-document";
 import type { InboundLoad } from "@/types";
 import {
   Badge,
@@ -25,6 +33,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { InboundReceiptPreview } from "@/features/inbound/InboundReceiptPreview";
 
 export default function InboundPage() {
+  const router = useRouter();
   const canCreate = useAuthStore((s) => s.hasPermission("inbound.create"));
   const canEdit = useAuthStore(
     (s) => s.hasPermission("inbound.edit") || s.hasPermission("admin.full"),
@@ -41,10 +50,12 @@ export default function InboundPage() {
   const myCompanyId = useAuthStore((s) => s.selectedWarehouseId);
   const [rows, setRows] = useState<InboundLoad[]>(DEMO_INBOUND);
   const [demo, setDemo] = useState(true);
+  const [selectedLoad, setSelectedLoad] = useState<InboundLoad | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<InboundLoad | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [previewLoad, setPreviewLoad] = useState<InboundLoad | null>(null);
+  const [busyAction, setBusyAction] = useState(false);
 
   const refresh = useCallback(async () => {
     const local = loadDemoCollection("inbound", DEMO_INBOUND);
@@ -73,20 +84,72 @@ export default function InboundPage() {
     };
   }, [refresh]);
 
+  function canEditRow(row: InboundLoad) {
+    if (!canEdit && !isAdmin) return false;
+    if (row.status === "Draft") return canEdit || isAdmin;
+    if (row.status === "Received") return isAdmin;
+    return false;
+  }
+
   function canDeleteRow(row: InboundLoad) {
     if (!canDelete) return false;
     if (isAdmin) return true;
     return row.status === "Draft";
   }
 
-  async function openReceiptPreview(row: InboundLoad) {
+  async function resolveFullLoad(row: InboundLoad): Promise<InboundLoad> {
     try {
       const full = await apiFetch<InboundLoad>(`/inbound/${row.id}`);
-      setPreviewLoad({ ...row, ...full, attachment: full.attachment || row.attachment });
+      return {
+        ...row,
+        ...full,
+        attachment: full.attachment || row.attachment,
+        lines: full.lines?.length ? full.lines : row.lines,
+      };
     } catch {
-      const local = getDemoItem("inbound", DEMO_INBOUND, row.id) || row;
-      setPreviewLoad(local);
+      return getDemoItem("inbound", DEMO_INBOUND, row.id) || row;
     }
+  }
+
+  async function openLoad(row: InboundLoad) {
+    setBusyAction(true);
+    try {
+      const full = await resolveFullLoad(row);
+      setSelectedLoad(full);
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
+  async function handlePrint(row: InboundLoad) {
+    setBusyAction(true);
+    try {
+      const full = await resolveFullLoad(row);
+      printInboundReceipt(full);
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
+  async function handlePreview(row: InboundLoad) {
+    setBusyAction(true);
+    try {
+      const full = await resolveFullLoad(row);
+      setSelectedLoad(null);
+      setPreviewLoad(full);
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
+  function handleEdit(row: InboundLoad) {
+    setSelectedLoad(null);
+    router.push(`/inbound/${row.id}`);
+  }
+
+  function requestDelete(row: InboundLoad) {
+    setSelectedLoad(null);
+    setConfirmDelete(row);
   }
 
   async function handleDelete() {
@@ -115,7 +178,7 @@ export default function InboundPage() {
     <div className="space-y-4">
       <PageHeader
         title="Inbound"
-        description="Receiving queue and load history. View, edit, or delete — admins can edit/delete received loads too."
+        description="Click a load to Print, Preview, Edit, or Delete."
         actions={
           canCreate ? (
             <Link href="/inbound/new">
@@ -146,19 +209,28 @@ export default function InboundPage() {
               <th className="px-4 py-3 font-semibold">Weight (lbs)</th>
               <th className="px-4 py-3 font-semibold">Status</th>
               <th className="px-4 py-3 font-semibold">Doc</th>
-              <th className="px-4 py-3 font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--brand-steel)]/10">
             {rows.map((row) => (
-              <tr key={row.id} className="hover:bg-[var(--surface)]/80">
+              <tr
+                key={row.id}
+                className="cursor-pointer transition-colors hover:bg-[var(--accent)]/5"
+                onClick={() => void openLoad(row)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    void openLoad(row);
+                  }
+                }}
+                tabIndex={0}
+                role="button"
+                aria-label={`Open actions for ${row.loadNumber}`}
+              >
                 <td className="px-4 py-3">
-                  <Link
-                    href={`/inbound/${row.id}`}
-                    className="font-[family-name:var(--font-mono)] font-medium text-[var(--brand-ink)] hover:text-[var(--accent)]"
-                  >
+                  <span className="font-[family-name:var(--font-mono)] font-medium text-[var(--accent)]">
                     {row.loadNumber}
-                  </Link>
+                  </span>
                   {row.carrier ? (
                     <p className="text-xs text-[var(--muted)]">{row.carrier}</p>
                   ) : null}
@@ -188,46 +260,6 @@ export default function InboundPage() {
                     "—"
                   )}
                 </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      type="button"
-                      onClick={() => void openReceiptPreview(row)}
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                      Preview
-                    </Button>
-                    <Link href={`/inbound/${row.id}?view=1`}>
-                      <Button variant="outline" size="sm" type="button">
-                        <Eye className="h-3.5 w-3.5" />
-                        View
-                      </Button>
-                    </Link>
-                    {(row.status === "Draft" && canEdit) ||
-                    (isAdmin && row.status === "Received") ? (
-                      <Link href={`/inbound/${row.id}`}>
-                        <Button size="sm" type="button">
-                          <Pencil className="h-3.5 w-3.5" />
-                          Edit
-                        </Button>
-                      </Link>
-                    ) : null}
-                    {canDeleteRow(row) ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        type="button"
-                        className="text-[var(--danger)] hover:bg-[var(--danger)]/5"
-                        onClick={() => setConfirmDelete(row)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Delete
-                      </Button>
-                    ) : null}
-                  </div>
-                </td>
               </tr>
             ))}
           </tbody>
@@ -236,7 +268,122 @@ export default function InboundPage() {
 
       <div className="flex gap-2 text-xs text-[var(--muted)]">
         <Badge tone="steel">{rows.length} loads</Badge>
+        <span>Click any load for Print, Preview, Edit, or Delete.</span>
       </div>
+
+      <Modal
+        open={Boolean(selectedLoad)}
+        title={selectedLoad?.loadNumber || "Inbound load"}
+        description="Choose an action for this inbound receipt."
+        onClose={() => {
+          if (!busyAction) setSelectedLoad(null);
+        }}
+        className="max-w-lg"
+        footer={
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busyAction}
+            onClick={() => setSelectedLoad(null)}
+          >
+            Close
+          </Button>
+        }
+      >
+        {selectedLoad ? (
+          <div className="space-y-4">
+            <div className="grid gap-2 rounded-md border border-[var(--brand-steel)]/15 bg-[var(--surface)]/70 px-3 py-3 text-sm sm:grid-cols-2">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--muted)]">
+                  Status
+                </p>
+                <div className="mt-1">
+                  <StatusBadge status={selectedLoad.status} />
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--muted)]">
+                  Storage plant
+                </p>
+                <p className="mt-1 font-[family-name:var(--font-mono)] font-medium">
+                  {selectedLoad.storageLocationCode || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--muted)]">
+                  Supplier
+                </p>
+                <p className="mt-1 font-medium">
+                  {selectedLoad.supplierName || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--muted)]">
+                  Weight
+                </p>
+                <p className="mt-1 font-medium tabular-nums">
+                  {selectedLoad.totalWeight != null
+                    ? formatWeight(selectedLoad.totalWeight)
+                    : "—"}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                disabled={busyAction}
+                onClick={() => void handlePrint(selectedLoad)}
+              >
+                <Printer className="h-4 w-4" />
+                Print
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                disabled={busyAction}
+                onClick={() => void handlePreview(selectedLoad)}
+              >
+                <FileText className="h-4 w-4" />
+                Preview
+              </Button>
+              <Button
+                type="button"
+                size="lg"
+                disabled={busyAction || !canEditRow(selectedLoad)}
+                title={
+                  canEditRow(selectedLoad)
+                    ? "Edit this inbound load"
+                    : "Editing is not available for this load"
+                }
+                onClick={() => handleEdit(selectedLoad)}
+              >
+                <Pencil className="h-4 w-4" />
+                Edit
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="text-[var(--danger)] hover:bg-[var(--danger)]/5"
+                disabled={busyAction || !canDeleteRow(selectedLoad)}
+                title={
+                  canDeleteRow(selectedLoad)
+                    ? "Delete this inbound load"
+                    : "Delete is not available for this load"
+                }
+                onClick={() => requestDelete(selectedLoad)}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
 
       <Modal
         open={Boolean(confirmDelete)}
