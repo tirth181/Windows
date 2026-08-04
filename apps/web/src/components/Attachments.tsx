@@ -21,6 +21,7 @@ function humanSize(bytes: number) {
 export function Attachments({ entityType, entityId, compact }: { entityType: string; entityId: string; compact?: boolean }) {
   const [items, setItems] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -39,6 +40,7 @@ export function Attachments({ entityType, entityId, compact }: { entityType: str
   async function onFiles(files: FileList | null) {
     if (!files || !files.length) return;
     setBusy(true);
+    setUploadError(null);
     try {
       for (const file of Array.from(files)) {
         const form = new FormData();
@@ -48,6 +50,8 @@ export function Attachments({ entityType, entityId, compact }: { entityType: str
         await apiUpload('/api/attachments', form);
       }
       await load();
+    } catch (e: any) {
+      setUploadError(e?.message || 'Upload failed');
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = '';
@@ -78,6 +82,7 @@ export function Attachments({ entityType, entityId, compact }: { entityType: str
         </button>
         <input ref={inputRef} type="file" multiple hidden onChange={(e) => onFiles(e.target.files)} />
       </div>
+      {uploadError && <p className="mt-2 rounded bg-red-50 px-2 py-1 text-xs text-red-600">{uploadError}</p>}
       <ul className="mt-2 space-y-1">
         {items.length === 0 && <li className="text-xs text-slate-400">No documents yet. Attach POs, BOLs, packing lists, or photos.</li>}
         {items.map((a) => (
