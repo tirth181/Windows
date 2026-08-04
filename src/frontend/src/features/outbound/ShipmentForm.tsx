@@ -1,73 +1,106 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AgGridReact } from "ag-grid-react";
-import {
-  ModuleRegistry,
-  AllCommunityModule,
-  type ColDef,
-  type CellValueChangedEvent,
-} from "ag-grid-community";
-import { Plus, CheckCircle2, Save, Paperclip, X } from "lucide-react";
+import { Plus, CheckCircle2, Save, Paperclip, Trash2, X } from "lucide-react";
 import { Button, Input, PageHeader, TypeaheadInput } from "@/components/ui";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiFetchOrDemo } from "@/lib/api";
 import {
   DEMO_CUSTOMERS,
   DEMO_INVENTORY,
   DEMO_OUTBOUND,
 } from "@/lib/mock-data";
-import { getDemoItem, upsertDemoItem } from "@/lib/demo-store";
+import {
+  getDemoItem,
+  loadDemoCollection,
+  upsertDemoItem,
+} from "@/lib/demo-store";
 import {
   loadKnownCustomers,
   resolveOrRememberCustomer,
 } from "@/lib/customers";
 import { companiesForUser } from "@/lib/companies-scope";
+import { companyInventoryRows } from "@/lib/inventory-snapshot";
 import { formatFileSize, formatShipTo } from "@/lib/ship-to";
 import { formatWeight } from "@/lib/utils";
 import type {
   Customer,
+  InventoryItem,
   OutboundAttachment,
   OutboundLine,
   OutboundOrder,
 } from "@/types";
 import { useAuthStore } from "@/stores/auth-store";
+import {
+  BinPickTypeahead,
+  buildBinPickOptions,
+  type BinPickOption,
+} from "./BinPickTypeahead";
 
 const MAX_ATTACHMENT_BYTES = 1.5 * 1024 * 1024;
 const ATTACHMENT_ACCEPT =
   ".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt,.csv";
 
-ModuleRegistry.registerModules([AllCommunityModule]);
-
-function lineFromInventory(invId?: string): OutboundLine {
-  const inv = DEMO_INVENTORY.find((i) => i.id === invId) || DEMO_INVENTORY[0];
+function emptyLine(): OutboundLine {
   return {
     id: crypto.randomUUID(),
-    inventoryItemId: inv?.id,
-    materialCode: inv?.materialCode || "",
-    materialDescription: inv?.materialDescription || "",
-    batchNumber: inv?.batchNumber || "",
-    palletId: inv?.palletId || "",
-    weight: inv ? Math.min(inv.remainingWeight, 500) : 0,
-    quantity: inv ? Math.min(inv.quantity, 10) : 0,
-    boxCount: inv?.boxCount ? Math.min(inv.boxCount, 5) : 0,
+    inventoryItemId: undefined,
+    materialCode: "",
+    materialDescription: "",
+    batchNumber: "",
+    palletId: "",
+    locationCode: "",
+    weight: 0,
+    quantity: 0,
+    boxCount: 0,
   };
 }
 
-function linesFromOrder(order?: OutboundOrder | null): OutboundLine[] {
+function applyInventoryToLine(
+  line: OutboundLine,
+  inv: InventoryItem,
+): OutboundLine {
+  return {
+    ...line,
+    inventoryItemId: inv.id,
+    materialCode: inv.materialCode,
+    materialDescription: inv.materialDescription,
+    batchNumber: inv.batchNumber,
+    palletId: inv.palletId,
+    locationCode: inv.locationCode,
+    weight: inv.remainingWeight,
+    quantity: inv.quantity,
+    boxCount: inv.boxCount || 0,
+  };
+}
+
+function linesFromOrder(
+  order: OutboundOrder | null | undefined,
+  inventory: InventoryItem[],
+): OutboundLine[] {
   if (order?.lines?.length) {
-    return order.lines.map((l) => ({ ...l, id: l.id || crypto.randomUUID() }));
+    return order.lines.map((l) => {
+      const inv = inventory.find((i) => i.id === l.inventoryItemId);
+      return {
+        ...l,
+        id: l.id || crypto.randomUUID(),
+        locationCode:
+          l.locationCode ||
+          inv?.locationCode ||
+          "",
+      };
+    });
   }
   if (order) {
     return [
       {
-        ...lineFromInventory(),
+        ...emptyLine(),
         weight: order.totalWeight ?? 0,
         quantity: order.lineCount ?? 1,
       },
     ];
   }
-  return [lineFromInventory("inv-2"), lineFromInventory("inv-1")];
+  return [emptyLine()];
 }
 
 interface ShipmentFormProps {
@@ -105,10 +138,8 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
   const [country, setCountry] = useState("United States");
   const [attachment, setAttachment] = useState<OutboundAttachment | null>(null);
   const [attachError, setAttachError] = useState<string | null>(null);
-  const [lines, setLines] = useState<OutboundLine[]>([
-    lineFromInventory("inv-2"),
-    lineFromInventory("inv-1"),
-  ]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [lines, setLines] = useState<OutboundLine[]>([emptyLine()]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -131,6 +162,24 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
     if (!myCompany) return;
     if (warehouseId !== myCompany.id) setWarehouseId(myCompany.id);
   }, [myCompany, warehouseId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const local = loadDemoCollection("inventory", DEMO_INVENTORY);
+      const result = await apiFetchOrDemo<
+        { items: InventoryItem[] } | InventoryItem[]
+      >("/inventory", local);
+      if (cancelled) return;
+      const data = Array.isArray(result.data)
+        ? result.data
+        : result.data.items ?? local;
+      setInventory(data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!orderId) return;
@@ -170,7 +219,8 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
         setCountry(order.country || "United States");
         setAttachment(order.attachment || null);
         setAttachError(null);
-        setLines(linesFromOrder(order));
+        const invLocal = loadDemoCollection("inventory", DEMO_INVENTORY);
+        setLines(linesFromOrder(order, invLocal));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -180,83 +230,15 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
     };
   }, [orderId]);
 
-  const columnDefs = useMemo<ColDef<OutboundLine>[]>(
-    () => [
-      {
-        field: "inventoryItemId",
-        headerName: "Inventory pick",
-        editable: !readOnly,
-        flex: 1.2,
-        minWidth: 160,
-        cellEditor: "agSelectCellEditor",
-        cellEditorParams: {
-          values: DEMO_INVENTORY.map((i) => i.id),
-        },
-        valueFormatter: (p) => {
-          const inv = DEMO_INVENTORY.find((i) => i.id === p.value);
-          return inv ? `${inv.materialCode} / ${inv.palletId}` : String(p.value || "");
-        },
-      },
-      { field: "materialCode", headerName: "Material", flex: 1, minWidth: 120 },
-      {
-        field: "batchNumber",
-        headerName: "Batch",
-        flex: 1,
-        minWidth: 110,
-        cellClass: "font-mono text-xs",
-      },
-      {
-        field: "palletId",
-        headerName: "Pallet",
-        flex: 1,
-        minWidth: 110,
-        cellClass: "font-mono text-xs",
-      },
-      {
-        field: "weight",
-        headerName: "Weight (lbs)",
-        editable: !readOnly,
-        type: "numericColumn",
-        flex: 0.9,
-        minWidth: 110,
-      },
-      {
-        field: "quantity",
-        headerName: "Qty",
-        editable: !readOnly,
-        type: "numericColumn",
-        flex: 0.7,
-        minWidth: 90,
-      },
-      {
-        field: "boxCount",
-        headerName: "Boxes/drums",
-        editable: !readOnly,
-        type: "numericColumn",
-        flex: 0.7,
-        minWidth: 90,
-      },
-    ],
-    [readOnly],
+  const companyInventory = useMemo(
+    () => companyInventoryRows(inventory, warehouseId || myCompany?.id),
+    [inventory, warehouseId, myCompany?.id],
   );
 
-  const onCellValueChanged = useCallback((e: CellValueChangedEvent<OutboundLine>) => {
-    if (!e.data) return;
-    let next = { ...e.data };
-    if (e.colDef.field === "inventoryItemId") {
-      const inv = DEMO_INVENTORY.find((i) => i.id === next.inventoryItemId);
-      if (inv) {
-        next = {
-          ...next,
-          materialCode: inv.materialCode,
-          materialDescription: inv.materialDescription,
-          batchNumber: inv.batchNumber,
-          palletId: inv.palletId,
-        };
-      }
-    }
-    setLines((prev) => prev.map((row) => (row.id === next.id ? next : row)));
-  }, []);
+  const binOptions = useMemo(
+    () => buildBinPickOptions(companyInventory),
+    [companyInventory],
+  );
 
   const totals = useMemo(() => {
     const weight = lines.reduce((s, l) => s + (Number(l.weight) || 0), 0);
@@ -266,6 +248,27 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
     const materials = new Set(lines.map((l) => l.materialCode).filter(Boolean)).size;
     return { weight, qty, boxes, pallets, materials };
   }, [lines]);
+
+  function updateLine(id: string, patch: Partial<OutboundLine>) {
+    setLines((prev) =>
+      prev.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+    );
+  }
+
+  function pickBinForLine(lineId: string, option: BinPickOption) {
+    setLines((prev) =>
+      prev.map((row) =>
+        row.id === lineId ? applyInventoryToLine(row, option.item) : row,
+      ),
+    );
+  }
+
+  function removeLine(lineId: string) {
+    setLines((prev) => {
+      const next = prev.filter((row) => row.id !== lineId);
+      return next.length ? next : [emptyLine()];
+    });
+  }
 
   const customerSuggestions = useMemo(
     () =>
@@ -291,7 +294,14 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
         state.trim() &&
         postalCode.trim() &&
         country.trim(),
-    ) && lines.some((l) => l.materialCode && l.weight > 0);
+    ) &&
+    lines.some(
+      (l) =>
+        l.inventoryItemId &&
+        l.locationCode &&
+        l.materialCode &&
+        (l.weight > 0 || l.quantity > 0),
+    );
 
   async function onAttachmentSelected(fileList: FileList | null) {
     setAttachError(null);
@@ -448,7 +458,7 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
             ? "This order is locked because it is shipped or cancelled. View only."
             : isEdit
               ? "Update header fields and pick lines, then save or confirm shipment."
-              : "Select inventory lines, review totals, and confirm shipment."
+              : "Type a storage location / bin to pick inventory, review totals, and confirm shipment."
         }
       />
 
@@ -602,29 +612,126 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
             variant="outline"
             size="sm"
             type="button"
-            onClick={() => setLines((prev) => [...prev, lineFromInventory()])}
+            onClick={() => setLines((prev) => [...prev, emptyLine()])}
           >
             <Plus className="h-4 w-4" />
             Add line
           </Button>
         ) : null}
       </div>
+      <p className="text-sm text-[var(--muted)]">
+        Type a storage location / bin to see matching inventory, then select one
+        to auto-fill material details.
+      </p>
 
-      <div className="ag-theme-quartz h-[360px] w-full overflow-hidden rounded-md border border-[var(--brand-steel)]/15">
-        <AgGridReact<OutboundLine>
-          theme="legacy"
-          rowData={lines}
-          columnDefs={columnDefs}
-          getRowId={(p) => p.data.id}
-          onCellValueChanged={onCellValueChanged}
-          defaultColDef={{
-            resizable: true,
-            editable: !readOnly,
-          }}
-          stopEditingWhenCellsLoseFocus
-          singleClickEdit
-          animateRows
-        />
+      <div className="space-y-3">
+        {lines.map((line, index) => (
+          <div
+            key={line.id}
+            className="rounded-md border border-[var(--brand-steel)]/15 bg-[var(--surface-raised)] p-3"
+          >
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+                Line {index + 1}
+              </p>
+              {!readOnly ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-[var(--danger)]"
+                  onClick={() => removeLine(line.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Remove
+                </Button>
+              ) : null}
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="md:col-span-2 xl:col-span-3">
+                <BinPickTypeahead
+                  value={line.locationCode || ""}
+                  options={binOptions}
+                  disabled={readOnly}
+                  placeholder="Type bin / storage location (e.g. HARBOR-MAIN)"
+                  hint={
+                    binOptions.length
+                      ? `${binOptions.length} pickable bins for your company`
+                      : "No available inventory bins for your company"
+                  }
+                  onQueryChange={(query) =>
+                    updateLine(line.id, {
+                      locationCode: query,
+                      // Clear pick until a suggestion is chosen
+                      inventoryItemId: undefined,
+                      materialCode: "",
+                      materialDescription: "",
+                      batchNumber: "",
+                      palletId: "",
+                      weight: 0,
+                      quantity: 0,
+                      boxCount: 0,
+                    })
+                  }
+                  onPick={(option) => pickBinForLine(line.id, option)}
+                />
+              </div>
+              <Input
+                label="Material"
+                value={line.materialCode}
+                readOnly
+                disabled
+              />
+              <Input
+                label="Description"
+                value={line.materialDescription}
+                readOnly
+                disabled
+              />
+              <Input
+                label="Batch"
+                value={line.batchNumber}
+                readOnly
+                disabled
+                className="font-[family-name:var(--font-mono)]"
+              />
+              <Input
+                label="Pallet"
+                value={line.palletId || ""}
+                readOnly
+                disabled
+                className="font-[family-name:var(--font-mono)]"
+              />
+              <Input
+                label="Weight (lbs)"
+                type="number"
+                value={String(line.weight)}
+                disabled={readOnly || !line.inventoryItemId}
+                onChange={(e) =>
+                  updateLine(line.id, { weight: Number(e.target.value) || 0 })
+                }
+              />
+              <Input
+                label="Qty"
+                type="number"
+                value={String(line.quantity)}
+                disabled={readOnly || !line.inventoryItemId}
+                onChange={(e) =>
+                  updateLine(line.id, { quantity: Number(e.target.value) || 0 })
+                }
+              />
+              <Input
+                label="Boxes/drums"
+                type="number"
+                value={String(line.boxCount)}
+                disabled={readOnly || !line.inventoryItemId}
+                onChange={(e) =>
+                  updateLine(line.id, { boxCount: Number(e.target.value) || 0 })
+                }
+              />
+            </div>
+          </div>
+        ))}
       </div>
 
       <footer className="sticky bottom-0 z-10 flex flex-col gap-3 rounded-md border border-[var(--brand-steel)]/15 bg-[var(--surface-raised)]/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">

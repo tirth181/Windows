@@ -120,6 +120,8 @@ export interface OutboundLine {
   materialDescription: string;
   batchNumber: string;
   palletId?: string;
+  /** Storage location / bin used to pick the inventory item. */
+  locationCode?: string;
   weight: number;
   quantity: number;
   boxCount: number;
