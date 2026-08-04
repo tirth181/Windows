@@ -216,11 +216,16 @@ public class PermissionAwareAiAssistantService : IAiAssistantService
 
         if (msg.Contains("batch") && _tenant.HasPermission(Domain.Common.PermissionCodes.InventoryView))
         {
+            // Prefer explicit batch ids like B240501 / LOT-123; avoid matching the word "batch".
             var batchToken = System.Text.RegularExpressions.Regex.Match(
-                message, @"\bB[\w-]+\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Value;
+                message, @"\b(?:B\d[\w-]*|[A-Z]{2,}-\d[\w-]*)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Value;
             if (string.IsNullOrWhiteSpace(batchToken))
-                batchToken = new string(message.Split(' ', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?
-                    .Where(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_').ToArray() ?? []);
+            {
+                var parts = message.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var idx = Array.FindIndex(parts, p => p.Equals("batch", StringComparison.OrdinalIgnoreCase));
+                var raw = idx >= 0 && idx + 1 < parts.Length ? parts[idx + 1] : parts.LastOrDefault() ?? "";
+                batchToken = new string(raw.Where(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_').ToArray());
+            }
             var item = await _db.InventoryItems
                 .Include(i => i.Location).Include(i => i.Warehouse)
                 .Where(i => i.BatchNumber.ToLower().Contains(batchToken.ToLower()))
