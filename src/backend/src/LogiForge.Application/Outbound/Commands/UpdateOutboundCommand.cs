@@ -52,13 +52,14 @@ public class UpdateOutboundCommandHandler : IRequestHandler<UpdateOutboundComman
 
         var order = await _orders.Query()
             .Include(o => o.Lines)
-            .Include(o => o.Customer)
             .FirstOrDefaultAsync(o => o.Id == request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(OutboundOrder), request.Id);
 
         if (order.Status is OutboundStatus.Shipped or OutboundStatus.Cancelled)
             throw new DomainException("invalid_state", "Shipped or cancelled orders cannot be modified.");
 
+        order.Customer = null;
+        order.Warehouse = null;
         order.CustomerId = request.Request.CustomerId;
         order.WarehouseId = request.Request.WarehouseId;
         order.CustomerPo = request.Request.CustomerPo;
@@ -70,34 +71,64 @@ public class UpdateOutboundCommandHandler : IRequestHandler<UpdateOutboundComman
         order.UpdatedAt = DateTime.UtcNow;
         order.UpdatedBy = _tenant.UserId;
 
-        foreach (var existing in order.Lines.Where(l => !l.IsDeleted).ToList())
-        {
-            existing.IsDeleted = true;
-            existing.DeletedAt = DateTime.UtcNow;
-            existing.UpdatedBy = _tenant.UserId;
-        }
+        var activeLines = order.Lines.Where(l => !l.IsDeleted).OrderBy(l => l.MaterialCode).ToList();
+        var incoming = request.Request.Lines.ToList();
 
-        foreach (var line in request.Request.Lines)
+        for (var i = 0; i < Math.Min(activeLines.Count, incoming.Count); i++)
         {
-            var item = await _inventory.GetByIdAsync(line.InventoryItemId, cancellationToken)
-                ?? throw new NotFoundException(nameof(InventoryItem), line.InventoryItemId);
-            if (line.Weight > item.RemainingWeight || line.Quantity > item.Quantity)
+            var src = incoming[i];
+            var item = await _inventory.GetByIdAsync(src.InventoryItemId, cancellationToken)
+                ?? throw new NotFoundException(nameof(InventoryItem), src.InventoryItemId);
+            if (src.Weight > item.RemainingWeight || src.Quantity > item.Quantity)
                 throw new DomainException("insufficient_inventory", $"Insufficient inventory for batch {item.BatchNumber}.");
 
-            order.Lines.Add(new OutboundLine
+            var target = activeLines[i];
+            target.InventoryItemId = item.Id;
+            target.MaterialCode = item.MaterialCode;
+            target.BatchNumber = item.BatchNumber;
+            target.Weight = src.Weight;
+            target.Quantity = src.Quantity;
+            target.LocationId = item.LocationId;
+            target.PalletCount = src.PalletCount;
+            target.BoxCount = src.BoxCount;
+            target.UpdatedBy = _tenant.UserId;
+            target.UpdatedAt = DateTime.UtcNow;
+        }
+
+        if (incoming.Count < activeLines.Count)
+        {
+            foreach (var extra in activeLines.Skip(incoming.Count))
             {
-                CompanyId = order.CompanyId,
-                OutboundOrderId = order.Id,
-                InventoryItemId = item.Id,
-                MaterialCode = item.MaterialCode,
-                BatchNumber = item.BatchNumber,
-                Weight = line.Weight,
-                Quantity = line.Quantity,
-                LocationId = item.LocationId,
-                PalletCount = line.PalletCount,
-                BoxCount = line.BoxCount,
-                CreatedBy = _tenant.UserId
-            });
+                extra.IsDeleted = true;
+                extra.DeletedAt = DateTime.UtcNow;
+                extra.UpdatedBy = _tenant.UserId;
+            }
+        }
+        else if (incoming.Count > activeLines.Count)
+        {
+            for (var i = activeLines.Count; i < incoming.Count; i++)
+            {
+                var src = incoming[i];
+                var item = await _inventory.GetByIdAsync(src.InventoryItemId, cancellationToken)
+                    ?? throw new NotFoundException(nameof(InventoryItem), src.InventoryItemId);
+                if (src.Weight > item.RemainingWeight || src.Quantity > item.Quantity)
+                    throw new DomainException("insufficient_inventory", $"Insufficient inventory for batch {item.BatchNumber}.");
+
+                order.Lines.Add(new OutboundLine
+                {
+                    CompanyId = order.CompanyId,
+                    OutboundOrderId = order.Id,
+                    InventoryItemId = item.Id,
+                    MaterialCode = item.MaterialCode,
+                    BatchNumber = item.BatchNumber,
+                    Weight = src.Weight,
+                    Quantity = src.Quantity,
+                    LocationId = item.LocationId,
+                    PalletCount = src.PalletCount,
+                    BoxCount = src.BoxCount,
+                    CreatedBy = _tenant.UserId
+                });
+            }
         }
 
         CreateOutboundCommandHandler.Recalc(order);
