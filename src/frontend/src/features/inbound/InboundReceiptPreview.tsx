@@ -1,10 +1,9 @@
 "use client";
 
-import { useRef } from "react";
 import { FileText, Paperclip, Printer } from "lucide-react";
 import { Button, Modal, StatusBadge } from "@/components/ui";
 import { formatFileSize } from "@/lib/ship-to";
-import { printElementAsDocument } from "@/lib/print-document";
+import { printInboundReceipt } from "@/lib/print-document";
 import { formatWeight } from "@/lib/utils";
 import type { DocumentAttachment, InboundLoad } from "@/types";
 
@@ -44,8 +43,6 @@ export function InboundReceiptPreview({
   /** Optional primary close after save (e.g. return to list). */
   onDone?: () => void;
 }) {
-  const printRef = useRef<HTMLDivElement>(null);
-
   if (!load) return null;
 
   const lines = (load.lines || []).filter((l) => l.materialCode);
@@ -57,10 +54,7 @@ export function InboundReceiptPreview({
     : load.storageLocationCode || "—";
 
   function handlePrintOrPdf() {
-    printElementAsDocument(
-      printRef.current,
-      `Inbound ${load!.loadNumber || "receipt"}`,
-    );
+    printInboundReceipt(load!);
   }
 
   return (
@@ -91,18 +85,18 @@ export function InboundReceiptPreview({
         </>
       }
     >
-      <div ref={printRef} className="inbound-receipt-preview space-y-5 text-[var(--brand-ink)]">
-        <div className="brand flex items-start justify-between gap-3 border-b-2 border-[var(--brand-ink)] pb-3">
+      <div className="inbound-receipt-preview space-y-5 text-[var(--brand-ink)]">
+        <div className="flex items-start justify-between gap-3 border-b-2 border-[var(--brand-ink)] pb-3">
           <div>
-            <p className="brand-mark font-[family-name:var(--font-display)] text-xl font-bold tracking-tight">
+            <p className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight">
               LogiForge
             </p>
-            <p className="muted text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
+            <p className="text-xs uppercase tracking-[0.14em] text-[var(--muted)]">
               Inbound receipt
             </p>
           </div>
           <div className="text-right">
-            <p className="mono font-[family-name:var(--font-mono)] text-lg font-semibold">
+            <p className="font-[family-name:var(--font-mono)] text-lg font-semibold">
               {load.loadNumber || "—"}
             </p>
             <div className="mt-1 flex justify-end">
@@ -115,7 +109,7 @@ export function InboundReceiptPreview({
           <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
             Header
           </h2>
-          <div className="grid-meta mt-2 grid gap-3 sm:grid-cols-2">
+          <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Meta label="3PL company" value={load.warehouseName || "—"} />
             <Meta label="Storage plant" value={plantLabel} />
             <Meta label="Arrival" value={formatWhen(load.arrivalDate)} />
@@ -130,7 +124,7 @@ export function InboundReceiptPreview({
               <Meta label="Received at" value={formatWhen(load.receivedAt)} />
             ) : null}
             {load.notes ? (
-              <div className="meta-item sm:col-span-2">
+              <div className="sm:col-span-2 lg:col-span-3">
                 <label className="text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--muted)]">
                   Notes
                 </label>
@@ -146,18 +140,28 @@ export function InboundReceiptPreview({
           <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
             Material lines
           </h2>
-          <div className="mt-2 overflow-x-auto rounded-md border border-[var(--brand-steel)]/15">
-            <table className="min-w-full text-left text-sm">
+          <div className="mt-2 rounded-md border border-[var(--brand-steel)]/15">
+            <table className="w-full table-fixed text-left text-xs">
+              <colgroup>
+                <col className="w-[12%]" />
+                <col className="w-[18%]" />
+                <col className="w-[12%]" />
+                <col className="w-[11%]" />
+                <col className="w-[13%]" />
+                <col className="w-[12%]" />
+                <col className="w-[8%]" />
+                <col className="w-[14%]" />
+              </colgroup>
               <thead className="bg-[#eef3f8] text-[10px] uppercase tracking-wide text-[var(--muted)]">
                 <tr>
-                  <th className="px-3 py-2 font-semibold">Material</th>
-                  <th className="px-3 py-2 font-semibold">Description</th>
-                  <th className="px-3 py-2 font-semibold">Batch</th>
-                  <th className="px-3 py-2 font-semibold">Pallet</th>
-                  <th className="px-3 py-2 font-semibold">Storage location</th>
-                  <th className="px-3 py-2 font-semibold">Weight</th>
-                  <th className="px-3 py-2 font-semibold">Qty</th>
-                  <th className="px-3 py-2 font-semibold">Boxes</th>
+                  <th className="px-2 py-2 font-semibold">Material</th>
+                  <th className="px-2 py-2 font-semibold">Description</th>
+                  <th className="px-2 py-2 font-semibold">Batch</th>
+                  <th className="px-2 py-2 font-semibold">Pallet</th>
+                  <th className="px-2 py-2 font-semibold">Storage location</th>
+                  <th className="px-2 py-2 text-right font-semibold">Weight</th>
+                  <th className="px-2 py-2 text-right font-semibold">Qty</th>
+                  <th className="px-2 py-2 text-right font-semibold">Boxes</th>
                 </tr>
               </thead>
               <tbody>
@@ -173,24 +177,30 @@ export function InboundReceiptPreview({
                 ) : (
                   lines.map((line) => (
                     <tr key={line.id} className="border-t border-[var(--brand-steel)]/10">
-                      <td className="mono px-3 py-2 font-[family-name:var(--font-mono)] font-medium">
+                      <td className="break-words px-2 py-2 font-[family-name:var(--font-mono)] font-medium">
                         {line.materialCode}
                       </td>
-                      <td className="px-3 py-2">{line.materialDescription || "—"}</td>
-                      <td className="mono px-3 py-2 font-[family-name:var(--font-mono)] text-xs">
+                      <td className="break-words px-2 py-2">
+                        {line.materialDescription || "—"}
+                      </td>
+                      <td className="break-words px-2 py-2 font-[family-name:var(--font-mono)]">
                         {line.batchNumber || "—"}
                       </td>
-                      <td className="mono px-3 py-2 font-[family-name:var(--font-mono)] text-xs">
+                      <td className="break-words px-2 py-2 font-[family-name:var(--font-mono)]">
                         {line.palletId || "—"}
                       </td>
-                      <td className="mono px-3 py-2 font-[family-name:var(--font-mono)] text-xs">
+                      <td className="break-words px-2 py-2 font-[family-name:var(--font-mono)]">
                         {line.locationCode || "—"}
                       </td>
-                      <td className="px-3 py-2 tabular-nums">
+                      <td className="px-2 py-2 text-right tabular-nums">
                         {formatWeight(line.weight)}
                       </td>
-                      <td className="px-3 py-2 tabular-nums">{line.quantity}</td>
-                      <td className="px-3 py-2 tabular-nums">{line.boxCount}</td>
+                      <td className="px-2 py-2 text-right tabular-nums">
+                        {line.quantity}
+                      </td>
+                      <td className="px-2 py-2 text-right tabular-nums">
+                        {line.boxCount}
+                      </td>
                     </tr>
                   ))
                 )}
