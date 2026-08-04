@@ -56,9 +56,11 @@ function linesFromLoad(load?: InboundLoad | null): InboundLine[] {
 
 interface ReceivingFormProps {
   loadId?: string;
+  /** When true, force read-only even if the user could otherwise edit. */
+  viewOnly?: boolean;
 }
 
-export function ReceivingForm({ loadId }: ReceivingFormProps) {
+export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) {
   const router = useRouter();
   const isEdit = Boolean(loadId);
   const selectedWarehouseId = useAuthStore((s) => s.selectedWarehouseId);
@@ -95,12 +97,17 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(isEdit);
 
-  // Admins may still modify received loads; cancelled stays locked for everyone
-  const readOnly =
-    isEdit &&
-    (status === "Cancelled" ||
-      (status !== "Draft" && !(isAdmin && status === "Received")));
+  // Admins may still edit received loads; cancelled stays locked for everyone
   const canAdminEditReceived = isAdmin && status === "Received";
+  const canEditThisLoad =
+    !isEdit ||
+    status === "Draft" ||
+    canAdminEditReceived;
+  const readOnly =
+    viewOnly ||
+    (isEdit &&
+      (status === "Cancelled" ||
+        (status !== "Draft" && !canAdminEditReceived)));
 
   useEffect(() => {
     if (loadId) return;
@@ -400,13 +407,15 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
       <PageHeader
         title={isEdit ? `Modify ${loadNumber || "inbound"}` : "New receiving"}
         description={
-          readOnly
-            ? "This load is locked. View only."
-            : canAdminEditReceived
-              ? "Admin override — you can update this received inbound shipment."
-              : isEdit
-                ? "Update header fields and material lines, then save."
-                : "Capture load header, scan material lines, then receive into inventory."
+          viewOnly
+            ? "Viewing inbound shipment. Use Edit to make changes when allowed."
+            : readOnly
+              ? "This load is locked. View only."
+              : canAdminEditReceived
+                ? "Admin override — you can edit this received inbound shipment."
+                : isEdit
+                  ? "Update header fields and material lines, then save."
+                  : "Capture load header, scan material lines, then receive into inventory."
         }
       />
 
@@ -537,6 +546,15 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
           <Button variant="outline" type="button" onClick={() => router.push("/inbound")}>
             Back
           </Button>
+          {viewOnly && canEditThisLoad && (canEdit || canAdminEditReceived) ? (
+            <Button
+              type="button"
+              size="lg"
+              onClick={() => loadId && router.push(`/inbound/${loadId}`)}
+            >
+              Edit
+            </Button>
+          ) : null}
           {!readOnly ? (
             <Button
               variant="secondary"

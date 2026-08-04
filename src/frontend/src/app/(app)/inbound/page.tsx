@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Pencil, Plus } from "lucide-react";
+import { Eye, Pencil, Plus } from "lucide-react";
 import { apiFetchOrDemo } from "@/lib/api";
 import { DEMO_INBOUND } from "@/lib/mock-data";
 import { loadDemoCollection } from "@/lib/demo-store";
@@ -53,7 +53,7 @@ export default function InboundPage() {
     <div className="space-y-4">
       <PageHeader
         title="Inbound"
-        description="Receiving queue and load history. Drafts can be modified; admins can also update received loads."
+        description="Receiving queue and load history. Use View or Edit — admins can edit received loads too."
         actions={
           canCreate ? (
             <Link href="/inbound/new">
@@ -112,17 +112,23 @@ export default function InboundPage() {
                   <StatusBadge status={row.status} />
                 </td>
                 <td className="px-4 py-3">
-                  {canEdit ? (
-                    <Link href={`/inbound/${row.id}`}>
+                  <div className="flex flex-wrap gap-2">
+                    <Link href={`/inbound/${row.id}?view=1`}>
                       <Button variant="outline" size="sm" type="button">
-                        <Pencil className="h-3.5 w-3.5" />
-                        {row.status === "Draft" ||
-                        (isAdmin && row.status === "Received")
-                          ? "Modify"
-                          : "View"}
+                        <Eye className="h-3.5 w-3.5" />
+                        View
                       </Button>
                     </Link>
-                  ) : null}
+                    {(row.status === "Draft" && canEdit) ||
+                    (isAdmin && row.status === "Received") ? (
+                      <Link href={`/inbound/${row.id}`}>
+                        <Button size="sm" type="button">
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                      </Link>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}
