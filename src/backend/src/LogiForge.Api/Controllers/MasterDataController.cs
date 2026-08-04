@@ -26,7 +26,16 @@ public class MasterDataController : ControllerBase
     public async Task<IActionResult> Locations([FromQuery] Guid? warehouseId, CancellationToken ct)
         => Ok(await _mediator.Send(new GetLocationsQuery(warehouseId), ct));
 
+    [HttpPut("customers/{id:guid}")]
+    public async Task<IActionResult> UpdateCustomer(Guid id, [FromBody] UpsertCustomerRequest request, CancellationToken ct)
+        => Ok(await _mediator.Send(new UpdateCustomerCommand(id, request), ct));
+
     [HttpPost("locations")]
     public async Task<IActionResult> CreateLocation([FromBody] CreateLocationRequest request, CancellationToken ct)
         => Ok(await _mediator.Send(new CreateLocationCommand(request), ct));
+
+    [HttpPut("locations/{id:guid}")]
+    public async Task<IActionResult> UpdateLocation(Guid id, [FromBody] UpdateLocationRequest request, CancellationToken ct)
+        => Ok(await _mediator.Send(new UpdateLocationCommand(id, request), ct));
 }
+

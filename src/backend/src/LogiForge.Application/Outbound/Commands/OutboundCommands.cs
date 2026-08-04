@@ -102,17 +102,18 @@ public class CreateOutboundCommandHandler : IRequestHandler<CreateOutboundComman
 
     internal static void Recalc(OutboundOrder order)
     {
-        order.TotalWeight = order.Lines.Sum(l => l.Weight);
-        order.TotalPallets = order.Lines.Sum(l => l.PalletCount);
-        order.TotalMaterials = order.Lines.Select(l => l.MaterialCode).Distinct().Count();
-        order.TotalBoxes = order.Lines.Sum(l => l.BoxCount);
+        var active = order.Lines.Where(l => !l.IsDeleted).ToList();
+        order.TotalWeight = active.Sum(l => l.Weight);
+        order.TotalPallets = active.Sum(l => l.PalletCount);
+        order.TotalMaterials = active.Select(l => l.MaterialCode).Distinct().Count();
+        order.TotalBoxes = active.Sum(l => l.BoxCount);
     }
 
     internal static OutboundOrderDto Map(OutboundOrder o) => new(
         o.Id, o.OrderNumber, o.CustomerPo, o.CustomerId, o.Customer?.Name, o.ShippingTerms,
         o.Carrier, o.TrackingNumber, o.ShipmentDate, o.TrailerNumber, o.WarehouseId, o.Status,
         o.TotalWeight, o.TotalPallets, o.TotalMaterials, o.TotalBoxes, o.ShippedAt,
-        o.Lines.Select(l => new OutboundLineDto(l.Id, l.InventoryItemId, l.MaterialCode, l.BatchNumber,
+        o.Lines.Where(l => !l.IsDeleted).Select(l => new OutboundLineDto(l.Id, l.InventoryItemId, l.MaterialCode, l.BatchNumber,
             l.Weight, l.Quantity, l.LocationId, l.PalletCount, l.BoxCount)).ToList());
 }
 

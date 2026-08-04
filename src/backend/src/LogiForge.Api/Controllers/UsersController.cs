@@ -20,6 +20,10 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateUserRequest request, CancellationToken ct)
         => Ok(await _mediator.Send(new CreateUserCommand(request), ct));
 
+    [HttpPut("users/{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateUserRequest request, CancellationToken ct)
+        => Ok(await _mediator.Send(new UpdateUserCommand(id, request), ct));
+
     [HttpGet("roles")]
     public async Task<IActionResult> Roles(CancellationToken ct) => Ok(await _mediator.Send(new GetRolesQuery(), ct));
 

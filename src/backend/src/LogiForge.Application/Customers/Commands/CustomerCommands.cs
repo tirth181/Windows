@@ -70,3 +70,35 @@ public class GetCustomersQueryHandler : IRequestHandler<GetCustomersQuery, IRead
             .ToListAsync(cancellationToken);
     }
 }
+
+public class UpdateCustomerCommandHandler : IRequestHandler<UpdateCustomerCommand, CustomerDto>
+{
+    private readonly IRepository<Customer> _customers;
+    private readonly ITenantContext _tenant;
+    private readonly IUnitOfWork _uow;
+    private readonly IAuditService _audit;
+
+    public UpdateCustomerCommandHandler(IRepository<Customer> customers, ITenantContext tenant, IUnitOfWork uow, IAuditService audit)
+    {
+        _customers = customers; _tenant = tenant; _uow = uow; _audit = audit;
+    }
+
+    public async Task<CustomerDto> Handle(UpdateCustomerCommand request, CancellationToken cancellationToken)
+    {
+        if (!_tenant.HasPermission(PermissionCodes.CustomersManage) && !_tenant.HasPermission(PermissionCodes.AdminFull))
+            throw new ForbiddenException();
+
+        var entity = await _customers.GetByIdAsync(request.Id, cancellationToken)
+            ?? throw new NotFoundException(nameof(Customer), request.Id);
+
+        entity.Code = request.Request.Code.Trim();
+        entity.Name = request.Request.Name.Trim();
+        entity.ContactJson = request.Request.ContactJson;
+        entity.IsActive = request.Request.IsActive;
+        entity.UpdatedBy = _tenant.UserId;
+        _customers.Update(entity);
+        await _uow.SaveChangesAsync(cancellationToken);
+        await _audit.WriteAsync("customers.update", nameof(Customer), entity.Id, null, new { entity.Code, entity.Name }, cancellationToken);
+        return new CustomerDto(entity.Id, entity.Code, entity.Name, entity.IsActive, entity.ContactJson);
+    }
+}

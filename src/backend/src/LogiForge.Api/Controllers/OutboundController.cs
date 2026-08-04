@@ -27,7 +27,12 @@ public class OutboundController : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateOutboundRequest request, CancellationToken ct)
         => Ok(await _mediator.Send(new CreateOutboundCommand(request), ct));
 
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] CreateOutboundRequest request, CancellationToken ct)
+        => Ok(await _mediator.Send(new UpdateOutboundCommand(id, request), ct));
+
     [HttpPost("{id:guid}/ship")]
     public async Task<IActionResult> Ship(Guid id, CancellationToken ct)
         => Ok(await _mediator.Send(new ShipOutboundCommand(id), ct));
 }
+

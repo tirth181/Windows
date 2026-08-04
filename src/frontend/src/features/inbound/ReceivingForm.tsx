@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AgGridReact } from "ag-grid-react";
 import {
@@ -9,11 +9,13 @@ import {
   type ColDef,
   type CellValueChangedEvent,
 } from "ag-grid-community";
-import { Plus, CheckCircle2 } from "lucide-react";
+import { Plus, CheckCircle2, Save } from "lucide-react";
 import { Button, Input, Select, PageHeader } from "@/components/ui";
-import { DEMO_CUSTOMERS, DEMO_WAREHOUSES } from "@/lib/mock-data";
+import { apiFetch } from "@/lib/api";
+import { DEMO_CUSTOMERS, DEMO_INBOUND, DEMO_WAREHOUSES } from "@/lib/mock-data";
+import { getDemoItem, upsertDemoItem } from "@/lib/demo-store";
 import { formatWeight } from "@/lib/utils";
-import type { InboundLine } from "@/types";
+import type { InboundLine, InboundLoad } from "@/types";
 import { useAuthStore } from "@/stores/auth-store";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -32,10 +34,44 @@ function newLine(): InboundLine {
   };
 }
 
-export function ReceivingForm() {
+function linesFromLoad(load?: InboundLoad | null): InboundLine[] {
+  if (load?.lines?.length) {
+    return load.lines.map((l) => ({ ...l, id: l.id || crypto.randomUUID() }));
+  }
+  if (load) {
+    // Seed editable rows from list summary when detail lines are absent
+    return [
+      {
+        ...newLine(),
+        materialCode: "EDIT-ME",
+        materialDescription: "Update material lines",
+        batchNumber: "BATCH-1",
+        weight: load.totalWeight ?? 0,
+        quantity: load.lineCount ?? 1,
+      },
+    ];
+  }
+  return [newLine(), newLine()];
+}
+
+interface ReceivingFormProps {
+  loadId?: string;
+}
+
+export function ReceivingForm({ loadId }: ReceivingFormProps) {
   const router = useRouter();
+  const isEdit = Boolean(loadId);
   const selectedWarehouseId = useAuthStore((s) => s.selectedWarehouseId);
   const warehouses = useAuthStore((s) => s.warehouses);
+  const canEdit = useAuthStore(
+    (s) => s.hasPermission("inbound.edit") || s.hasPermission("admin.full"),
+  );
+  const canReceive = useAuthStore(
+    (s) => s.hasPermission("inbound.approve") || s.hasPermission("admin.full"),
+  );
+
+  const [loadNumber, setLoadNumber] = useState<string>("");
+  const [status, setStatus] = useState<InboundLoad["status"]>("Draft");
   const [warehouseId, setWarehouseId] = useState(
     selectedWarehouseId || DEMO_WAREHOUSES[0]?.id || "",
   );
@@ -50,19 +86,62 @@ export function ReceivingForm() {
   const [lines, setLines] = useState<InboundLine[]>([newLine(), newLine()]);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(isEdit);
+
+  const readOnly = isEdit && status !== "Draft";
+
+  useEffect(() => {
+    if (!loadId) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        let load: InboundLoad | undefined;
+        try {
+          load = await apiFetch<InboundLoad>(`/inbound/${loadId}`);
+        } catch {
+          load = getDemoItem("inbound", DEMO_INBOUND, loadId);
+        }
+        if (cancelled || !load) {
+          if (!cancelled) {
+            setMessage("Inbound load not found.");
+            setLoading(false);
+          }
+          return;
+        }
+        setLoadNumber(load.loadNumber);
+        setStatus(load.status);
+        setWarehouseId(load.warehouseId);
+        setCustomerId(load.customerId);
+        setSupplierName(load.supplierName || "");
+        setCarrier(load.carrier || "");
+        setTrailerNumber(load.trailerNumber || "");
+        setArrivalDate(new Date(load.arrivalDate).toISOString().slice(0, 16));
+        setNotes(load.notes || "");
+        setLines(linesFromLoad(load));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadId]);
 
   const addLine = useCallback(() => {
+    if (readOnly) return;
     setLines((prev) => [...prev, newLine()]);
-  }, []);
+  }, [readOnly]);
 
   const columnDefs = useMemo<ColDef<InboundLine>[]>(
     () => [
-      { field: "materialCode", headerName: "Material", editable: true, flex: 1.1, minWidth: 130 },
-      { field: "materialDescription", headerName: "Description", editable: true, flex: 1.4, minWidth: 160 },
+      { field: "materialCode", headerName: "Material", editable: !readOnly, flex: 1.1, minWidth: 130 },
+      { field: "materialDescription", headerName: "Description", editable: !readOnly, flex: 1.4, minWidth: 160 },
       {
         field: "batchNumber",
         headerName: "Batch",
-        editable: true,
+        editable: !readOnly,
         flex: 1,
         minWidth: 120,
         cellClass: "font-mono text-xs",
@@ -70,16 +149,16 @@ export function ReceivingForm() {
       {
         field: "palletId",
         headerName: "Pallet ID",
-        editable: true,
+        editable: !readOnly,
         flex: 1,
         minWidth: 120,
         cellClass: "font-mono text-xs",
       },
-      { field: "locationCode", headerName: "Location", editable: true, flex: 0.9, minWidth: 110 },
+      { field: "locationCode", headerName: "Location", editable: !readOnly, flex: 0.9, minWidth: 110 },
       {
         field: "weight",
         headerName: "Weight (lbs)",
-        editable: true,
+        editable: !readOnly,
         type: "numericColumn",
         flex: 0.9,
         minWidth: 110,
@@ -87,7 +166,7 @@ export function ReceivingForm() {
       {
         field: "quantity",
         headerName: "Qty",
-        editable: true,
+        editable: !readOnly,
         type: "numericColumn",
         flex: 0.7,
         minWidth: 90,
@@ -95,13 +174,13 @@ export function ReceivingForm() {
       {
         field: "boxCount",
         headerName: "Boxes/drums",
-        editable: true,
+        editable: !readOnly,
         type: "numericColumn",
         flex: 1,
         minWidth: 120,
       },
     ],
-    [],
+    [readOnly],
   );
 
   const onCellValueChanged = useCallback((e: CellValueChangedEvent<InboundLine>) => {
@@ -122,35 +201,146 @@ export function ReceivingForm() {
     );
   }, [lines]);
 
-  const canReceive =
+  const canSave =
     Boolean(warehouseId && customerId) &&
     lines.some((l) => l.materialCode && (l.weight > 0 || l.quantity > 0));
 
-  async function handleReceive() {
-    if (!canReceive) return;
-    setSubmitting(true);
+  function buildPayload() {
+    const warehouse =
+      (warehouses.length ? warehouses : DEMO_WAREHOUSES).find((w) => w.id === warehouseId) ||
+      DEMO_WAREHOUSES[0];
+    const customer = DEMO_CUSTOMERS.find((c) => c.id === customerId) || DEMO_CUSTOMERS[0];
+    return {
+      warehouseId,
+      warehouseName: warehouse?.name,
+      customerId,
+      customerName: customer?.name,
+      supplierName: supplierName || undefined,
+      arrivalDate: new Date(arrivalDate).toISOString(),
+      carrier: carrier || undefined,
+      trailerNumber: trailerNumber || undefined,
+      notes: notes || undefined,
+      lines: lines
+        .filter((l) => l.materialCode)
+        .map((l) => ({
+          materialCode: l.materialCode,
+          materialDescription: l.materialDescription,
+          batchNumber: l.batchNumber,
+          weight: Number(l.weight) || 0,
+          quantity: Number(l.quantity) || 0,
+          boxCount: Number(l.boxCount) || 0,
+          palletId: l.palletId || undefined,
+          putawayLocationId: undefined as string | undefined,
+          comments: undefined as string | undefined,
+        })),
+    };
+  }
+
+  async function persist(nextStatus: InboundLoad["status"] = status) {
+    const payload = buildPayload();
+    const id = loadId || crypto.randomUUID();
+    const record: InboundLoad = {
+      ...payload,
+      id,
+      loadNumber:
+        loadNumber ||
+        `INB-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 9000 + 1000)}`,
+      status: nextStatus,
+      lineCount: payload.lines.length,
+      totalWeight: totals.weight,
+      lines: lines.filter((l) => l.materialCode),
+    };
+
     try {
-      // Demo mode: simulate receive success when API is unavailable
-      await new Promise((r) => setTimeout(r, 500));
+      if (isEdit && loadId) {
+        await apiFetch(`/inbound/${loadId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/inbound", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
+    } catch {
+      upsertDemoItem("inbound", DEMO_INBOUND, record);
+    }
+    return record;
+  }
+
+  async function handleSave() {
+    if (!canSave || readOnly || (isEdit && !canEdit)) return;
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      const saved = await persist("Draft");
+      setLoadNumber(saved.loadNumber);
       setDone(true);
-      setTimeout(() => router.push("/inbound"), 900);
+      setMessage(isEdit ? "Changes saved." : "Draft created.");
+      setTimeout(() => router.push("/inbound"), 700);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Save failed.");
     } finally {
       setSubmitting(false);
     }
   }
 
+  async function handleReceive() {
+    if (!canSave || !canReceive || readOnly) return;
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      const saved = await persist("Draft");
+      try {
+        await apiFetch(`/inbound/${saved.id}/receive`, { method: "POST" });
+      } catch {
+        upsertDemoItem("inbound", DEMO_INBOUND, {
+          ...saved,
+          status: "Received",
+          receivedAt: new Date().toISOString(),
+        });
+      }
+      setStatus("Received");
+      setDone(true);
+      setMessage("Load received into inventory.");
+      setTimeout(() => router.push("/inbound"), 900);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Receive failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading) {
+    return <p className="text-sm text-[var(--muted)]">Loading inbound load…</p>;
+  }
+
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col gap-4">
       <PageHeader
-        title="New receiving"
-        description="Capture load header, scan material lines, then receive into inventory."
+        title={isEdit ? `Modify ${loadNumber || "inbound"}` : "New receiving"}
+        description={
+          readOnly
+            ? "This load is locked because it is no longer a draft. View only."
+            : isEdit
+              ? "Update header fields and material lines, then save."
+              : "Capture load header, scan material lines, then receive into inventory."
+        }
       />
+
+      {message ? (
+        <p className="rounded-md border border-[var(--brand-steel)]/15 bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--brand-ink)]">
+          {message}
+        </p>
+      ) : null}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Select
           label="Warehouse"
           value={warehouseId}
           onChange={(e) => setWarehouseId(e.target.value)}
+          disabled={readOnly}
           options={(warehouses.length ? warehouses : DEMO_WAREHOUSES).map((w) => ({
             value: w.id,
             label: `${w.code} — ${w.name}`,
@@ -160,6 +350,7 @@ export function ReceivingForm() {
           label="Customer"
           value={customerId}
           onChange={(e) => setCustomerId(e.target.value)}
+          disabled={readOnly}
           options={DEMO_CUSTOMERS.filter((c) => c.isActive).map((c) => ({
             value: c.id,
             label: `${c.code} — ${c.name}`,
@@ -170,24 +361,28 @@ export function ReceivingForm() {
           type="datetime-local"
           value={arrivalDate}
           onChange={(e) => setArrivalDate(e.target.value)}
+          disabled={readOnly}
         />
         <Input
           label="Supplier"
           value={supplierName}
           onChange={(e) => setSupplierName(e.target.value)}
           placeholder="Supplier / vendor name"
+          disabled={readOnly}
         />
         <Input
           label="Carrier"
           value={carrier}
           onChange={(e) => setCarrier(e.target.value)}
           placeholder="Carrier"
+          disabled={readOnly}
         />
         <Input
           label="Trailer #"
           value={trailerNumber}
           onChange={(e) => setTrailerNumber(e.target.value)}
           placeholder="Trailer number"
+          disabled={readOnly}
           className="font-[family-name:var(--font-mono)]"
         />
         <div className="md:col-span-2 xl:col-span-3">
@@ -196,6 +391,7 @@ export function ReceivingForm() {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Optional receiving notes"
+            disabled={readOnly}
           />
         </div>
       </div>
@@ -204,10 +400,12 @@ export function ReceivingForm() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
           Material lines
         </h2>
-        <Button variant="outline" size="sm" type="button" onClick={addLine}>
-          <Plus className="h-4 w-4" />
-          Add line
-        </Button>
+        {!readOnly ? (
+          <Button variant="outline" size="sm" type="button" onClick={addLine}>
+            <Plus className="h-4 w-4" />
+            Add line
+          </Button>
+        ) : null}
       </div>
 
       <div className="ag-theme-quartz h-[360px] w-full overflow-hidden rounded-md border border-[var(--brand-steel)]/15">
@@ -220,50 +418,64 @@ export function ReceivingForm() {
           defaultColDef={{
             resizable: true,
             sortable: false,
-            editable: true,
+            editable: !readOnly,
           }}
           stopEditingWhenCellsLoseFocus
           singleClickEdit
           animateRows
-          style={{ height: "100%", width: "100%" }}
         />
       </div>
 
       <footer className="sticky bottom-0 z-10 -mx-1 flex flex-col gap-3 rounded-md border border-[var(--brand-steel)]/15 bg-[var(--surface-raised)]/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-[var(--brand-ink)]">
           <span>
-            Materials{" "}
-            <strong className="tabular-nums">{totals.materials}</strong>
+            Materials <strong className="tabular-nums">{totals.materials}</strong>
           </span>
           <span>
-            Weight{" "}
-            <strong className="tabular-nums">{formatWeight(totals.weight)}</strong>
+            Weight <strong className="tabular-nums">{formatWeight(totals.weight)}</strong>
           </span>
           <span>
             Qty <strong className="tabular-nums">{totals.qty}</strong>
           </span>
           <span>
-            Boxes/drums{" "}
-            <strong className="tabular-nums">{totals.boxes}</strong>
+            Boxes/drums <strong className="tabular-nums">{totals.boxes}</strong>
           </span>
         </div>
-        <Button
-          size="lg"
-          disabled={!canReceive || submitting || done}
-          onClick={handleReceive}
-          className="min-w-[160px]"
-        >
-          {done ? (
-            <>
-              <CheckCircle2 className="h-5 w-5 animate-pulse" />
-              Received
-            </>
-          ) : submitting ? (
-            "Receiving…"
-          ) : (
-            "Receive"
-          )}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" type="button" onClick={() => router.push("/inbound")}>
+            Back
+          </Button>
+          {!readOnly ? (
+            <Button
+              variant="secondary"
+              size="lg"
+              disabled={!canSave || submitting || done || (isEdit && !canEdit)}
+              onClick={handleSave}
+            >
+              <Save className="h-4 w-4" />
+              {submitting ? "Saving…" : "Save changes"}
+            </Button>
+          ) : null}
+          {!readOnly && canReceive ? (
+            <Button
+              size="lg"
+              disabled={!canSave || submitting || done}
+              onClick={handleReceive}
+              className="min-w-[160px]"
+            >
+              {done && status === "Received" ? (
+                <>
+                  <CheckCircle2 className="h-5 w-5 animate-pulse" />
+                  Received
+                </>
+              ) : submitting ? (
+                "Receiving…"
+              ) : (
+                "Receive"
+              )}
+            </Button>
+          ) : null}
+        </div>
       </footer>
     </div>
   );

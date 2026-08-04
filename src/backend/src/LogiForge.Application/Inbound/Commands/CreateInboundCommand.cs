@@ -117,7 +117,7 @@ public class CreateInboundCommandHandler : IRequestHandler<CreateInboundCommand,
         load.Id, load.LoadNumber, load.CustomerId, load.Customer?.Name, load.SupplierName,
         load.ArrivalDate, load.Carrier, load.TrailerNumber, load.WarehouseId, load.Warehouse?.Name,
         load.Notes, load.Status, load.ReceivedAt,
-        load.Lines.OrderBy(l => l.LineNumber).Select(l => new InboundLineDto(
+        load.Lines.Where(l => !l.IsDeleted).OrderBy(l => l.LineNumber).Select(l => new InboundLineDto(
             l.Id, l.LineNumber, l.MaterialCode, l.MaterialDescription, l.BatchNumber,
             l.Weight, l.Quantity, l.BoxCount, l.PalletId, l.PutawayLocationId, l.Status, l.Comments)).ToList());
 }
