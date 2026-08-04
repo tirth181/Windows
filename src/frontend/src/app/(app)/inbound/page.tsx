@@ -69,7 +69,7 @@ export default function InboundPage() {
           <thead className="bg-[#eef3f8] text-xs uppercase tracking-wide text-[var(--muted)]">
             <tr>
               <th className="px-4 py-3 font-semibold">Load</th>
-              <th className="px-4 py-3 font-semibold">Storage Location</th>
+              <th className="px-4 py-3 font-semibold">Storage Plant</th>
               <th className="px-4 py-3 font-semibold">3PL company</th>
               <th className="px-4 py-3 font-semibold">Arrival</th>
               <th className="px-4 py-3 font-semibold">Lines</th>

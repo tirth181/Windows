@@ -187,7 +187,7 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
       },
       {
         field: "locationCode",
-        headerName: "Storage Location",
+        headerName: "Storage Plant",
         editable: !readOnly,
         flex: 1.1,
         minWidth: 130,
