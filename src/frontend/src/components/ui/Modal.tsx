@@ -65,9 +65,11 @@ export function Modal({
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
+        <div className="max-h-[min(70vh,720px)] overflow-y-auto px-5 py-4">
+          {children}
+        </div>
         {footer ? (
-          <div className="flex justify-end gap-2 border-t border-[var(--brand-steel)]/10 px-5 py-3">
+          <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--brand-steel)]/10 px-5 py-3">
             {footer}
           </div>
         ) : null}

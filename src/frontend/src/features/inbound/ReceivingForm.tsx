@@ -9,7 +9,15 @@ import {
   type ColDef,
   type CellValueChangedEvent,
 } from "ag-grid-community";
-import { Plus, CheckCircle2, Save, Trash2 } from "lucide-react";
+import {
+  Plus,
+  CheckCircle2,
+  Save,
+  Trash2,
+  Eye,
+  Paperclip,
+  X,
+} from "lucide-react";
 import { Button, Input, Select, PageHeader, Modal } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import { DEMO_INBOUND } from "@/lib/mock-data";
@@ -24,9 +32,20 @@ import {
   findStoragePlant,
   plantsForCompany,
 } from "@/lib/storage-plants";
+import { formatFileSize } from "@/lib/ship-to";
 import { formatWeight } from "@/lib/utils";
-import type { InboundLine, InboundLoad, StoragePlant } from "@/types";
+import type {
+  DocumentAttachment,
+  InboundLine,
+  InboundLoad,
+  StoragePlant,
+} from "@/types";
 import { useAuthStore } from "@/stores/auth-store";
+import { InboundReceiptPreview } from "./InboundReceiptPreview";
+
+const MAX_ATTACHMENT_BYTES = 1.5 * 1024 * 1024;
+const ATTACHMENT_ACCEPT =
+  ".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt,.csv";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -107,12 +126,17 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
   const [arrivalDate, setArrivalDate] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<InboundLine[]>([newLine(), newLine()]);
+  const [attachment, setAttachment] = useState<DocumentAttachment | null>(null);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(isEdit);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoad, setPreviewLoad] = useState<InboundLoad | null>(null);
+  const [previewAfterSave, setPreviewAfterSave] = useState(false);
 
   // Admins may still edit received loads; cancelled stays locked for everyone
   const canAdminEditReceived = isAdmin && status === "Received";
@@ -188,6 +212,7 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
         setTrailerNumber(load.trailerNumber || "");
         setArrivalDate(new Date(load.arrivalDate).toISOString().slice(0, 16));
         setNotes(load.notes || "");
+        setAttachment(load.attachment || null);
         setLines(linesFromLoad(load));
       } finally {
         if (!cancelled) setLoading(false);
@@ -297,21 +322,29 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
     plantOptions.some((p) => p.id === storageLocationId) &&
     lines.some((l) => l.materialCode && (l.weight > 0 || l.quantity > 0));
 
-  function buildPayload() {
-    const warehouse = myCompany || myCompanies[0];
-    const plant =
+  function selectedPlant() {
+    return (
       plantOptions.find((p) => p.id === storageLocationId) ||
       findStoragePlant(storageLocationId) ||
-      plantOptions[0];
+      plantOptions[0]
+    );
+  }
+
+  function buildPayload() {
+    const warehouse = myCompany || myCompanies[0];
+    const plant = selectedPlant();
     return {
       warehouseId: warehouse?.id || warehouseId,
       warehouseName: warehouse?.name,
       storageLocationId: plant?.id,
       storageLocationCode: plant?.code,
+      storagePlantName: plant?.name,
       // Backend still expects a customer id; not shown in inbound UI.
       customerId: "cust-1",
       supplierName: supplierName || undefined,
-      arrivalDate: new Date(arrivalDate).toISOString(),
+      arrivalDate: arrivalDate
+        ? new Date(arrivalDate).toISOString()
+        : new Date().toISOString(),
       carrier: carrier || undefined,
       trailerNumber: trailerNumber || undefined,
       notes: notes || undefined,
@@ -334,19 +367,24 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
     };
   }
 
-  async function persist(nextStatus: InboundLoad["status"] = status) {
+  function buildReceiptSnapshot(
+    nextStatus: InboundLoad["status"] = status,
+    id?: string,
+  ): InboundLoad {
     const payload = buildPayload();
-    const id = loadId || crypto.randomUUID();
     const defaultCode = payload.storageLocationCode;
-    const record: InboundLoad = {
+    const plant = selectedPlant();
+    return {
       ...payload,
-      id,
+      id: id || loadId || crypto.randomUUID(),
       loadNumber:
         loadNumber ||
         `INB-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 9000 + 1000)}`,
       status: nextStatus,
       lineCount: payload.lines.length,
       totalWeight: totals.weight,
+      storagePlantName: plant?.name,
+      attachment: attachment || undefined,
       lines: lines
         .filter((l) => l.materialCode)
         .map((l) => ({
@@ -354,6 +392,34 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
           locationCode: l.locationCode || defaultCode,
         })),
     };
+  }
+
+  async function onAttachmentSelected(fileList: FileList | null) {
+    setAttachError(null);
+    const file = fileList?.[0];
+    if (!file) return;
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setAttachError("Attachment must be 1.5 MB or smaller.");
+      return;
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Could not read file."));
+      reader.readAsDataURL(file);
+    }).catch(() => undefined);
+
+    setAttachment({
+      name: file.name,
+      size: file.size,
+      type: file.type || "application/octet-stream",
+      dataUrl,
+    });
+  }
+
+  async function persist(nextStatus: InboundLoad["status"] = status) {
+    const payload = buildPayload();
+    const record = buildReceiptSnapshot(nextStatus);
 
     try {
       if (isEdit && loadId) {
@@ -371,6 +437,17 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
       upsertDemoItem("inbound", DEMO_INBOUND, record);
     }
     return record;
+  }
+
+  function openPreview(load: InboundLoad, afterSave = false) {
+    setPreviewLoad(load);
+    setPreviewAfterSave(afterSave);
+    setPreviewOpen(true);
+  }
+
+  function handlePreview() {
+    if (!canSave && !loadId) return;
+    openPreview(buildReceiptSnapshot(status), false);
   }
 
   async function handleSave() {
@@ -391,7 +468,7 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
             ? "Changes saved."
             : "Draft created.",
       );
-      setTimeout(() => router.push("/inbound"), 700);
+      openPreview(saved, true);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Save failed.");
     } finally {
@@ -405,19 +482,21 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
     setMessage(null);
     try {
       const saved = await persist("Draft");
+      let received: InboundLoad = {
+        ...saved,
+        status: "Received",
+        receivedAt: new Date().toISOString(),
+      };
       try {
         await apiFetch(`/inbound/${saved.id}/receive`, { method: "POST" });
       } catch {
-        upsertDemoItem("inbound", DEMO_INBOUND, {
-          ...saved,
-          status: "Received",
-          receivedAt: new Date().toISOString(),
-        });
+        upsertDemoItem("inbound", DEMO_INBOUND, received);
       }
+      setLoadNumber(saved.loadNumber);
       setStatus("Received");
       setDone(true);
       setMessage("Load received into inventory.");
-      setTimeout(() => router.push("/inbound"), 900);
+      openPreview(received, true);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Receive failed.");
     } finally {
@@ -558,6 +637,68 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
             disabled={readOnly}
           />
         </div>
+        <div className="md:col-span-2 xl:col-span-3">
+          <span className="mb-1.5 block text-sm font-medium text-[var(--brand-ink)]">
+            Document attachment
+          </span>
+          {attachment ? (
+            <div className="flex flex-wrap items-center gap-3 rounded-md border border-[var(--brand-steel)]/15 bg-[var(--surface-raised)] px-3 py-2.5">
+              <Paperclip className="h-4 w-4 text-[var(--accent)]" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-[var(--brand-ink)]">
+                  {attachment.name}
+                </p>
+                <p className="text-xs text-[var(--muted)]">
+                  {formatFileSize(attachment.size)}
+                  {attachment.type ? ` · ${attachment.type}` : ""}
+                </p>
+              </div>
+              {!readOnly ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setAttachment(null);
+                    setAttachError(null);
+                  }}
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Remove
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            <label
+              className={`flex cursor-pointer flex-col items-start gap-1 rounded-md border border-dashed border-[var(--brand-steel)]/25 bg-[var(--surface-raised)]/70 px-3 py-3 transition-colors hover:border-[var(--accent)]/40 ${
+                readOnly ? "pointer-events-none opacity-60" : ""
+              }`}
+            >
+              <span className="inline-flex items-center gap-2 text-sm font-medium text-[var(--brand-ink)]">
+                <Paperclip className="h-4 w-4 text-[var(--muted)]" aria-hidden />
+                Attach packing list / BOL / reference document
+              </span>
+              <span className="text-xs text-[var(--muted)]">
+                PDF, Office, image, or text — max 1.5 MB
+              </span>
+              <input
+                type="file"
+                className="sr-only"
+                accept={ATTACHMENT_ACCEPT}
+                disabled={readOnly}
+                onChange={(e) => {
+                  void onAttachmentSelected(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          )}
+          {attachError ? (
+            <p className="mt-1.5 text-xs text-[var(--danger)]" role="alert">
+              {attachError}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-2">
@@ -631,6 +772,16 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
               Edit
             </Button>
           ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            disabled={!canSave && !loadNumber}
+            onClick={handlePreview}
+          >
+            <Eye className="h-4 w-4" />
+            Preview
+          </Button>
           {!readOnly ? (
             <Button
               variant="secondary"
@@ -638,13 +789,12 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
               disabled={
                 !canSave ||
                 submitting ||
-                done ||
                 (isEdit && !canEdit && !canAdminEditReceived)
               }
               onClick={handleSave}
             >
               <Save className="h-4 w-4" />
-              {submitting ? "Saving…" : "Save changes"}
+              {submitting ? "Saving…" : "Save & preview"}
             </Button>
           ) : null}
           {!readOnly && canReceive && status === "Draft" ? (
@@ -700,6 +850,23 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
         Delete <strong>{loadNumber || "this load"}</strong>
         {status === "Received" ? " (received — admin delete)." : "."}
       </Modal>
+
+      <InboundReceiptPreview
+        open={previewOpen}
+        load={previewLoad}
+        onClose={() => {
+          setPreviewOpen(false);
+          if (previewAfterSave) setDone(false);
+        }}
+        onDone={
+          previewAfterSave
+            ? () => {
+                setPreviewOpen(false);
+                router.push("/inbound");
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }

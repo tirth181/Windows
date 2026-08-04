@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import { Eye, FileText, Pencil, Plus, Trash2 } from "lucide-react";
 import { apiFetch, apiFetchOrDemo } from "@/lib/api";
 import { DEMO_INBOUND } from "@/lib/mock-data";
 import {
+  getDemoItem,
   loadDemoCollection,
   saveDemoCollection,
 } from "@/lib/demo-store";
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui";
 import { formatWeight } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
+import { InboundReceiptPreview } from "@/features/inbound/InboundReceiptPreview";
 
 export default function InboundPage() {
   const canCreate = useAuthStore((s) => s.hasPermission("inbound.create"));
@@ -42,6 +44,7 @@ export default function InboundPage() {
   const [confirmDelete, setConfirmDelete] = useState<InboundLoad | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [previewLoad, setPreviewLoad] = useState<InboundLoad | null>(null);
 
   const refresh = useCallback(async () => {
     const local = loadDemoCollection("inbound", DEMO_INBOUND);
@@ -74,6 +77,16 @@ export default function InboundPage() {
     if (!canDelete) return false;
     if (isAdmin) return true;
     return row.status === "Draft";
+  }
+
+  async function openReceiptPreview(row: InboundLoad) {
+    try {
+      const full = await apiFetch<InboundLoad>(`/inbound/${row.id}`);
+      setPreviewLoad({ ...row, ...full, attachment: full.attachment || row.attachment });
+    } catch {
+      const local = getDemoItem("inbound", DEMO_INBOUND, row.id) || row;
+      setPreviewLoad(local);
+    }
   }
 
   async function handleDelete() {
@@ -132,6 +145,7 @@ export default function InboundPage() {
               <th className="px-4 py-3 font-semibold">Lines</th>
               <th className="px-4 py-3 font-semibold">Weight (lbs)</th>
               <th className="px-4 py-3 font-semibold">Status</th>
+              <th className="px-4 py-3 font-semibold">Doc</th>
               <th className="px-4 py-3 font-semibold">Actions</th>
             </tr>
           </thead>
@@ -165,8 +179,26 @@ export default function InboundPage() {
                 <td className="px-4 py-3">
                   <StatusBadge status={row.status} />
                 </td>
+                <td className="px-4 py-3 text-xs text-[var(--muted)]">
+                  {row.attachment?.name ? (
+                    <span className="truncate" title={row.attachment.name}>
+                      Yes
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      onClick={() => void openReceiptPreview(row)}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      Preview
+                    </Button>
                     <Link href={`/inbound/${row.id}?view=1`}>
                       <Button variant="outline" size="sm" type="button">
                         <Eye className="h-3.5 w-3.5" />
@@ -239,6 +271,12 @@ export default function InboundPage() {
           ? " (received — admin delete)."
           : "."}
       </Modal>
+
+      <InboundReceiptPreview
+        open={Boolean(previewLoad)}
+        load={previewLoad}
+        onClose={() => setPreviewLoad(null)}
+      />
     </div>
   );
 }

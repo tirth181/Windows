@@ -79,6 +79,8 @@ export interface InboundLoad {
   customerName?: string;
   storageLocationId?: string;
   storageLocationCode?: string;
+  /** Display name for storage plant when available. */
+  storagePlantName?: string;
   supplierName?: string;
   arrivalDate: string;
   carrier?: string;
@@ -88,6 +90,7 @@ export interface InboundLoad {
   receivedAt?: string;
   lineCount?: number;
   totalWeight?: number;
+  attachment?: DocumentAttachment;
   lines?: InboundLine[];
 }
 
@@ -122,13 +125,17 @@ export interface OutboundLine {
   boxCount: number;
 }
 
-export interface OutboundAttachment {
+/** Document attached to inbound/outbound receipts (demo stores dataUrl locally). */
+export interface DocumentAttachment {
   name: string;
   size: number;
   type: string;
   /** Optional base64 data URL for demo/local persistence of smaller files. */
   dataUrl?: string;
 }
+
+/** @deprecated Prefer DocumentAttachment — kept for existing outbound imports. */
+export type OutboundAttachment = DocumentAttachment;
 
 export interface OutboundOrder {
   id: string;
@@ -145,7 +152,7 @@ export interface OutboundOrder {
   country?: string;
   /** Legacy / display summary of ship-to. */
   destination?: string;
-  attachment?: OutboundAttachment;
+  attachment?: DocumentAttachment;
   status: OutboundStatus;
   shippedAt?: string;
   lineCount?: number;
