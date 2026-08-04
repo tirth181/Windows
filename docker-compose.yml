@@ -36,6 +36,8 @@ services:
       ConnectionStrings__Redis: redis:6379
       Jwt__Key: LogiForge_Dev_Signing_Key_ChangeMe_32chars!
       Cors__Origins__0: http://localhost:3000
+      Cors__Origins__1: https://logiforge.com
+      Cors__Origins__2: https://www.logiforge.com
       Swagger__Enabled: "true"
       Cache__UseRedis: "true"
     ports:
