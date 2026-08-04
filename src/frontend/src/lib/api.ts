@@ -125,3 +125,16 @@ export async function apiFetchOrDemo<T>(
     return { data: fallback, demo: true };
   }
 }
+
+/**
+ * Whether a failed write may safely fall back to local demo persistence.
+ * Never treat auth/permission/client errors as offline success for real sessions.
+ */
+export function shouldFallbackToDemo(error: unknown): boolean {
+  const token = getAccessToken();
+  if (isDemoToken(token)) return true;
+  if (!(error instanceof ApiError)) return true; // network / parse failures
+  if (error.status === 401 || error.status === 403) return false;
+  if (error.status >= 400 && error.status < 500) return false;
+  return true;
+}

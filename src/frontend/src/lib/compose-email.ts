@@ -1,3 +1,10 @@
+import {
+  MAX_EMAIL_ATTACHMENT_BYTES,
+  MAX_EMAIL_ATTACHMENT_COUNT,
+  sanitizeAttachmentFilename,
+  sanitizeHeaderValue,
+  sanitizeMimeType,
+} from "@/lib/secure-attachment";
 import type { DocumentAttachment } from "@/types";
 
 export type EmailAttachment = {
@@ -8,12 +15,12 @@ export type EmailAttachment = {
 };
 
 function encodeSubject(subject: string): string {
-  // RFC 2047 encoded-word when non-ASCII
-  if (/^[\x20-\x7E]*$/.test(subject)) return subject;
+  const clean = sanitizeHeaderValue(subject);
+  // Always encode to neutralize CRLF / special header chars
   const b64 =
     typeof btoa !== "undefined"
-      ? btoa(unescape(encodeURIComponent(subject)))
-      : Buffer.from(subject, "utf8").toString("base64");
+      ? btoa(unescape(encodeURIComponent(clean)))
+      : Buffer.from(clean, "utf8").toString("base64");
   return `=?UTF-8?B?${b64}?=`;
 }
 
@@ -34,15 +41,13 @@ function parseDataUrl(dataUrl: string): {
     dataUrl.replace(/\s+/g, ""),
   );
   if (!m) return null;
-  return { mime: m[1] || "application/octet-stream", base64: m[2] };
-}
-
-function safeFilename(name: string): string {
-  return name.replace(/[\r\n"\\]/g, "_").trim() || "attachment";
+  const base64 = m[2];
+  if (!/^[A-Za-z0-9+/=]+$/.test(base64)) return null;
+  return { mime: sanitizeMimeType(m[1]), base64 };
 }
 
 function uniqueName(name: string, used: Set<string>): string {
-  let candidate = safeFilename(name);
+  let candidate = sanitizeAttachmentFilename(name);
   if (!used.has(candidate.toLowerCase())) {
     used.add(candidate.toLowerCase());
     return candidate;
@@ -57,6 +62,10 @@ function uniqueName(name: string, used: Set<string>): string {
   return candidate;
 }
 
+function estimatedBytes(base64: string): number {
+  return Math.floor((base64.length * 3) / 4);
+}
+
 /** Build a multipart .eml (HTML body + file attachments). */
 export function buildEmlDocument(opts: {
   to: string[];
@@ -67,8 +76,8 @@ export function buildEmlDocument(opts: {
   attachments?: EmailAttachment[];
 }): string {
   const boundary = `----=_LogiForge_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
-  const from = opts.from || "LogiForge <noreply@logiforge.demo>";
-  const toHeader = opts.to.join(", ");
+  const from = sanitizeHeaderValue(opts.from || "LogiForge <noreply@logiforge.demo>");
+  const toHeader = sanitizeHeaderValue(opts.to.join(", "));
   const date = new Date().toUTCString();
 
   const parts: string[] = [
@@ -89,17 +98,21 @@ export function buildEmlDocument(opts: {
     "",
   ];
 
-  if (opts.text) {
-    // Already included HTML; plain text omitted from multipart/mixed for simplicity
-  }
-
   const usedNames = new Set<string>();
+  let totalBytes = 0;
+  let attached = 0;
+
   for (const att of opts.attachments || []) {
+    if (attached >= MAX_EMAIL_ATTACHMENT_COUNT) break;
     if (!att.dataUrl) continue;
     const parsed = parseDataUrl(att.dataUrl);
     if (!parsed) continue;
+    const size = estimatedBytes(parsed.base64);
+    if (size <= 0) continue;
+    if (totalBytes + size > MAX_EMAIL_ATTACHMENT_BYTES) break;
+
     const filename = uniqueName(att.name, usedNames);
-    const mime = att.type || parsed.mime || "application/octet-stream";
+    const mime = sanitizeMimeType(att.type || parsed.mime);
     parts.push(
       `--${boundary}`,
       `Content-Type: ${mime}; name="${filename}"`,
@@ -109,6 +122,8 @@ export function buildEmlDocument(opts: {
       foldBase64(parsed.base64),
       "",
     );
+    totalBytes += size;
+    attached += 1;
   }
 
   parts.push(`--${boundary}--`, "");
@@ -118,12 +133,14 @@ export function buildEmlDocument(opts: {
 /** Download a composed .eml so the mail client opens with HTML + attachments. */
 export function downloadEml(filename: string, eml: string): void {
   if (typeof window === "undefined") return;
+  const safe = sanitizeAttachmentFilename(filename.endsWith(".eml") ? filename : `${filename}.eml`);
   const blob = new Blob([eml], { type: "message/rfc822" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = filename.endsWith(".eml") ? filename : `${filename}.eml`;
+  a.download = safe;
   a.style.display = "none";
+  a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -135,8 +152,8 @@ export function documentToEmailAttachment(
 ): EmailAttachment | null {
   if (!att?.name) return null;
   return {
-    name: att.name,
-    type: att.type,
+    name: sanitizeAttachmentFilename(att.name),
+    type: sanitizeMimeType(att.type),
     dataUrl: att.dataUrl,
   };
 }

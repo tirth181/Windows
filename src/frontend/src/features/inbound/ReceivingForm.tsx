@@ -37,6 +37,11 @@ import {
 } from "@/lib/storage-plants";
 import { printInboundReceipt } from "@/lib/print-document";
 import { applyReceivedInboundToInventory } from "@/lib/receive-to-inventory";
+import {
+  ATTACHMENT_ACCEPT,
+  MAX_ATTACHMENT_BYTES,
+  readSecureAttachment,
+} from "@/lib/secure-attachment";
 import { formatFileSize } from "@/lib/ship-to";
 import { formatWeight } from "@/lib/utils";
 import type {
@@ -48,10 +53,6 @@ import type {
 import { useAuthStore } from "@/stores/auth-store";
 import { InboundReceiptPreview } from "./InboundReceiptPreview";
 import { EmailReceiptModal } from "./EmailReceiptModal";
-
-const MAX_ATTACHMENT_BYTES = 1.5 * 1024 * 1024;
-const ATTACHMENT_ACCEPT =
-  ".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt,.csv";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -404,25 +405,12 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
 
   async function onAttachmentSelected(fileList: FileList | null) {
     setAttachError(null);
-    const file = fileList?.[0];
-    if (!file) return;
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      setAttachError("Attachment must be 1.5 MB or smaller.");
+    const result = await readSecureAttachment(fileList?.[0]);
+    if (!result.ok) {
+      setAttachError(result.error);
       return;
     }
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("Could not read file."));
-      reader.readAsDataURL(file);
-    }).catch(() => undefined);
-
-    setAttachment({
-      name: file.name,
-      size: file.size,
-      type: file.type || "application/octet-stream",
-      dataUrl,
-    });
+    setAttachment(result.attachment);
   }
 
   async function persist(nextStatus: InboundLoad["status"] = status) {
@@ -706,7 +694,9 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
                 Attach packing list / BOL / reference document
               </span>
               <span className="text-xs text-[var(--muted)]">
-                PDF, Office, image, or text — max 1.5 MB
+                PDF, Office, PNG/JPEG, TXT, or CSV — max{" "}
+                {(MAX_ATTACHMENT_BYTES / (1024 * 1024)).toFixed(1)} MB. SVG/HTML
+                blocked.
               </span>
               <input
                 type="file"

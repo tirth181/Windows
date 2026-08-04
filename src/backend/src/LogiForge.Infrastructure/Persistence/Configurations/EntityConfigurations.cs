@@ -182,6 +182,10 @@ public class OutboundOrderConfiguration : IEntityTypeConfiguration<OutboundOrder
         b.HasKey(x => x.Id);
         b.HasIndex(x => new { x.CompanyId, x.OrderNumber }).IsUnique();
         b.Property(x => x.Status).HasConversion<string>().HasMaxLength(30);
+        b.Property(x => x.CustomerPo).HasMaxLength(180);
+        b.Property(x => x.ShippingTerms).HasMaxLength(500);
+        b.Property(x => x.Carrier).HasMaxLength(120);
+        b.Property(x => x.TrackingNumber).HasMaxLength(120);
         b.Property(x => x.TotalWeight).HasPrecision(18, 4);
         b.HasMany(x => x.Lines).WithOne(l => l.OutboundOrder).HasForeignKey(l => l.OutboundOrderId);
         b.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId);

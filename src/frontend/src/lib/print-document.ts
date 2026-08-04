@@ -1,3 +1,7 @@
+import {
+  isSafeImageDataUrl,
+  sanitizeAttachmentFilename,
+} from "@/lib/secure-attachment";
 import { formatFileSize } from "@/lib/ship-to";
 import { formatWeight } from "@/lib/utils";
 import type { DocumentAttachment, InboundLoad } from "@/types";
@@ -26,10 +30,7 @@ function formatWhen(value?: string): string {
 }
 
 function isImage(att: DocumentAttachment): boolean {
-  return (
-    att.type.startsWith("image/") ||
-    /\.(png|jpe?g|gif|webp)$/i.test(att.name)
-  );
+  return isSafeImageDataUrl(att.dataUrl);
 }
 
 const PRINT_STYLES = `
@@ -191,13 +192,13 @@ export function buildInboundReceiptPrintHtml(load: InboundLoad): string {
   let attachmentBlock = `<p class="muted">No document attached to this receipt.</p>`;
   if (load.attachment) {
     const att = load.attachment;
-    const img =
-      att.dataUrl && isImage(att)
-        ? `<img src="${att.dataUrl}" alt="${escapeHtml(att.name)}" />`
-        : "";
+    const safeName = sanitizeAttachmentFilename(att.name);
+    const img = isImage(att)
+      ? `<img src="${att.dataUrl}" alt="${escapeHtml(safeName)}" />`
+      : "";
     attachmentBlock = `
       <div class="attach">
-        <strong>${escapeHtml(att.name)}</strong>
+        <strong>${escapeHtml(safeName)}</strong>
         <div class="muted">${escapeHtml(formatFileSize(att.size))}${
           att.type ? ` · ${escapeHtml(att.type)}` : ""
         }</div>

@@ -2,10 +2,16 @@
 
 import { FileText, Mail, Paperclip, Printer } from "lucide-react";
 import { Button, Modal, StatusBadge } from "@/components/ui";
+import {
+  isSafeDownloadDataUrl,
+  isSafeImageDataUrl,
+  isSafePdfDataUrl,
+  sanitizeAttachmentFilename,
+} from "@/lib/secure-attachment";
 import { formatFileSize } from "@/lib/ship-to";
 import { printInboundReceipt } from "@/lib/print-document";
 import { formatWeight } from "@/lib/utils";
-import type { DocumentAttachment, InboundLoad } from "@/types";
+import type { InboundLoad } from "@/types";
 
 function formatWhen(value?: string): string {
   if (!value) return "—";
@@ -18,17 +24,6 @@ function formatWhen(value?: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function isImage(att: DocumentAttachment): boolean {
-  return (
-    att.type.startsWith("image/") ||
-    /\.(png|jpe?g|gif|webp)$/i.test(att.name)
-  );
-}
-
-function isPdf(att: DocumentAttachment): boolean {
-  return att.type === "application/pdf" || /\.pdf$/i.test(att.name);
 }
 
 export function InboundReceiptPreview({
@@ -262,28 +257,30 @@ export function InboundReceiptPreview({
                     {load.attachment.type ? ` · ${load.attachment.type}` : ""}
                   </p>
                 </div>
-                {load.attachment.dataUrl ? (
+                {isSafeDownloadDataUrl(load.attachment.dataUrl) ? (
                   <a
                     href={load.attachment.dataUrl}
-                    download={load.attachment.name}
+                    download={sanitizeAttachmentFilename(load.attachment.name)}
                     className="ml-auto text-sm font-medium text-[var(--accent)] hover:underline"
+                    rel="noopener"
                   >
                     Download
                   </a>
                 ) : null}
               </div>
-              {load.attachment.dataUrl && isImage(load.attachment) ? (
+              {isSafeImageDataUrl(load.attachment.dataUrl) ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={load.attachment.dataUrl}
-                  alt={load.attachment.name}
+                  alt={sanitizeAttachmentFilename(load.attachment.name)}
                   className="max-h-[420px] w-full rounded border border-[var(--brand-steel)]/10 object-contain bg-white"
                 />
               ) : null}
-              {load.attachment.dataUrl && isPdf(load.attachment) ? (
+              {isSafePdfDataUrl(load.attachment.dataUrl) ? (
                 <iframe
-                  title={load.attachment.name}
+                  title={sanitizeAttachmentFilename(load.attachment.name)}
                   src={load.attachment.dataUrl}
+                  sandbox=""
                   className="h-[420px] w-full rounded border border-[var(--brand-steel)]/10 bg-white"
                 />
               ) : null}

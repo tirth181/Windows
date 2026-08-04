@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using FluentValidation;
 using LogiForge.Application.Outbound.Dtos;
 using LogiForge.Domain.Common;
@@ -14,12 +15,26 @@ public record UpdateOutboundCommand(Guid Id, CreateOutboundRequest Request) : IR
 
 public class UpdateOutboundCommandValidator : AbstractValidator<UpdateOutboundCommand>
 {
+    private static readonly Regex SafeAttachmentName = new(
+        @"^[\w.\- ()]{1,180}$",
+        RegexOptions.Compiled);
+
     public UpdateOutboundCommandValidator()
     {
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Request.CustomerId).NotEmpty();
         RuleFor(x => x.Request.WarehouseId).NotEmpty();
         // Lines may be omitted for shipped attachment-only updates
+        RuleFor(x => x.Request.CustomerPo)
+            .MaximumLength(180)
+            .Must(v => v is null || SafeAttachmentName.IsMatch(v))
+            .WithMessage("CustomerPo / attachment name contains unsafe characters.")
+            .When(x => !string.IsNullOrWhiteSpace(x.Request.CustomerPo));
+        RuleFor(x => x.Request.ShippingTerms)
+            .MaximumLength(500)
+            .Must(v => v is null || !v.Contains('\0') && !v.Contains('\r') && !v.Contains('\n'))
+            .WithMessage("ShippingTerms contains unsafe characters.")
+            .When(x => !string.IsNullOrWhiteSpace(x.Request.ShippingTerms));
     }
 }
 
@@ -62,8 +77,8 @@ public class UpdateOutboundCommandHandler : IRequestHandler<UpdateOutboundComman
         // (stored on CustomerPo / ShippingTerms for packing lists, BOLs, etc.)
         if (order.Status is OutboundStatus.Shipped)
         {
-            order.CustomerPo = request.Request.CustomerPo;
-            order.ShippingTerms = request.Request.ShippingTerms;
+            order.CustomerPo = SanitizeAttachmentName(request.Request.CustomerPo);
+            order.ShippingTerms = SanitizeShippingTerms(request.Request.ShippingTerms);
             order.UpdatedAt = DateTime.UtcNow;
             order.UpdatedBy = _tenant.UserId;
             _orders.Update(order);
@@ -84,12 +99,15 @@ public class UpdateOutboundCommandHandler : IRequestHandler<UpdateOutboundComman
             return CreateOutboundCommandHandler.Map(order);
         }
 
+        if (request.Request.Lines is null || request.Request.Lines.Count == 0)
+            throw new DomainException("validation_failed", "At least one outbound line is required.");
+
         order.Customer = null;
         order.Warehouse = null;
         order.CustomerId = request.Request.CustomerId;
         order.WarehouseId = request.Request.WarehouseId;
-        order.CustomerPo = request.Request.CustomerPo;
-        order.ShippingTerms = request.Request.ShippingTerms;
+        order.CustomerPo = SanitizeAttachmentName(request.Request.CustomerPo);
+        order.ShippingTerms = SanitizeShippingTerms(request.Request.ShippingTerms);
         order.Carrier = request.Request.Carrier;
         order.TrackingNumber = request.Request.TrackingNumber;
         order.ShipmentDate = request.Request.ShipmentDate.ToUniversalTime();
@@ -167,5 +185,24 @@ public class UpdateOutboundCommandHandler : IRequestHandler<UpdateOutboundComman
             .FirstAsync(o => o.Id == request.Id, cancellationToken);
 
         return CreateOutboundCommandHandler.Map(order);
+    }
+
+    public static string? SanitizeAttachmentName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var name = value.Replace('\\', '/').Split('/').LastOrDefault()?.Trim() ?? "";
+        name = Regex.Replace(name, @"[\u0000-\u001F\u007F]", "");
+        name = Regex.Replace(name, @"[<>:""|?*`$]", "_");
+        if (name.Length > 180) name = name[..180];
+        return string.IsNullOrWhiteSpace(name) ? null : name;
+    }
+
+    public static string? SanitizeShippingTerms(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var cleaned = value.Replace("\r", " ").Replace("\n", " ").Replace("\0", "");
+        cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim();
+        if (cleaned.Length > 500) cleaned = cleaned[..500];
+        return string.IsNullOrWhiteSpace(cleaned) ? null : cleaned;
     }
 }

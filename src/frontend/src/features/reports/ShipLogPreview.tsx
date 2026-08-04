@@ -8,9 +8,15 @@ import {
   printShipLog,
   shipLogTotals,
 } from "@/lib/ship-log";
+import {
+  isSafeDownloadDataUrl,
+  isSafeImageDataUrl,
+  isSafePdfDataUrl,
+  sanitizeAttachmentFilename,
+} from "@/lib/secure-attachment";
 import { formatFileSize, formatShipTo } from "@/lib/ship-to";
 import { formatWeight } from "@/lib/utils";
-import type { DocumentAttachment, OutboundOrder, Warehouse } from "@/types";
+import type { OutboundOrder, Warehouse } from "@/types";
 
 function formatWhen(value?: string): string {
   if (!value) return "—";
@@ -23,17 +29,6 @@ function formatWhen(value?: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function isImage(att: DocumentAttachment): boolean {
-  return (
-    att.type.startsWith("image/") ||
-    /\.(png|jpe?g|gif|webp)$/i.test(att.name)
-  );
-}
-
-function isPdf(att: DocumentAttachment): boolean {
-  return att.type === "application/pdf" || /\.pdf$/i.test(att.name);
 }
 
 export function ShipLogPreview({
@@ -229,28 +224,30 @@ export function ShipLogPreview({
                           {att.type ? ` · ${att.type}` : ""}
                         </p>
                       </div>
-                      {att.dataUrl ? (
+                      {isSafeDownloadDataUrl(att.dataUrl) ? (
                         <a
                           href={att.dataUrl}
-                          download={att.name}
+                          download={sanitizeAttachmentFilename(att.name)}
                           className="text-sm font-medium text-[var(--accent)] hover:underline"
+                          rel="noopener"
                         >
                           Download
                         </a>
                       ) : null}
                     </div>
-                    {att.dataUrl && isImage(att) ? (
+                    {isSafeImageDataUrl(att.dataUrl) ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={att.dataUrl}
-                        alt={att.name}
+                        alt={sanitizeAttachmentFilename(att.name)}
                         className="max-h-[320px] w-full rounded border border-[var(--brand-steel)]/10 bg-white object-contain"
                       />
                     ) : null}
-                    {att.dataUrl && isPdf(att) ? (
+                    {isSafePdfDataUrl(att.dataUrl) ? (
                       <iframe
-                        title={att.name}
+                        title={sanitizeAttachmentFilename(att.name)}
                         src={att.dataUrl}
+                        sandbox=""
                         className="h-[320px] w-full rounded border border-[var(--brand-steel)]/10 bg-white"
                       />
                     ) : null}

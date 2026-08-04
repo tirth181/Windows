@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using FluentValidation;
 using LogiForge.Application.Outbound.Dtos;
 using LogiForge.Domain.Common;
@@ -14,11 +15,27 @@ public record CreateOutboundCommand(CreateOutboundRequest Request) : IRequest<Ou
 
 public class CreateOutboundCommandValidator : AbstractValidator<CreateOutboundCommand>
 {
+    private static readonly Regex SafeAttachmentName = new(
+        @"^[\w.\- ()]{1,180}$",
+        RegexOptions.Compiled);
+
     public CreateOutboundCommandValidator()
     {
         RuleFor(x => x.Request.CustomerId).NotEmpty();
         RuleFor(x => x.Request.WarehouseId).NotEmpty();
         RuleFor(x => x.Request.Lines).NotEmpty();
+        RuleFor(x => x.Request.CustomerPo)
+            .MaximumLength(180)
+            .Must(v => v is null || SafeAttachmentName.IsMatch(v))
+            .WithMessage("CustomerPo / attachment name contains unsafe characters.")
+            .When(x => !string.IsNullOrWhiteSpace(x.Request.CustomerPo));
+        RuleFor(x => x.Request.ShippingTerms)
+            .MaximumLength(500)
+            .Must(v => v is null || !v.Contains('\0') && !v.Contains('\r') && !v.Contains('\n'))
+            .WithMessage("ShippingTerms contains unsafe characters.")
+            .When(x => !string.IsNullOrWhiteSpace(x.Request.ShippingTerms));
+        RuleFor(x => x.Request.TrackingNumber).MaximumLength(120);
+        RuleFor(x => x.Request.Carrier).MaximumLength(120);
     }
 }
 

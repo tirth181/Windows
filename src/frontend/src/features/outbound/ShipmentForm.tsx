@@ -4,7 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, CheckCircle2, Save, Paperclip, Trash2, X } from "lucide-react";
 import { Button, Input, PageHeader, TypeaheadInput } from "@/components/ui";
-import { apiFetch, apiFetchOrDemo } from "@/lib/api";
+import { ApiError, apiFetch, apiFetchOrDemo, shouldFallbackToDemo } from "@/lib/api";
+import {
+  ATTACHMENT_ACCEPT,
+  MAX_ATTACHMENT_BYTES,
+  readSecureAttachment,
+  sanitizeAttachmentFilename,
+} from "@/lib/secure-attachment";
 import {
   DEMO_CUSTOMERS,
   DEMO_INVENTORY,
@@ -37,10 +43,6 @@ import {
   buildBinPickOptions,
   type BinPickOption,
 } from "./BinPickTypeahead";
-
-const MAX_ATTACHMENT_BYTES = 1.5 * 1024 * 1024;
-const ATTACHMENT_ACCEPT =
-  ".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt,.csv";
 
 function emptyLine(): OutboundLine {
   return {
@@ -311,25 +313,12 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
 
   async function onAttachmentSelected(fileList: FileList | null) {
     setAttachError(null);
-    const file = fileList?.[0];
-    if (!file) return;
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      setAttachError("Attachment must be 1.5 MB or smaller.");
+    const result = await readSecureAttachment(fileList?.[0]);
+    if (!result.ok) {
+      setAttachError(result.error);
       return;
     }
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("Could not read file."));
-      reader.readAsDataURL(file);
-    }).catch(() => undefined);
-
-    setAttachment({
-      name: file.name,
-      size: file.size,
-      type: file.type || "application/octet-stream",
-      dataUrl,
-    });
+    setAttachment(result.attachment);
   }
 
   async function persist(nextStatus: OutboundOrder["status"] = status) {
@@ -340,8 +329,11 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
 
     const warehouse = myCompany || myCompanies[0];
     const destination = shipToSummary;
-    const attachmentNote = attachment
-      ? `Attachment: ${attachment.name} (${formatFileSize(attachment.size)})`
+    const safeAttachName = attachment
+      ? sanitizeAttachmentFilename(attachment.name)
+      : undefined;
+    const attachmentNote = safeAttachName
+      ? `Attachment: ${safeAttachName} (${formatFileSize(attachment!.size)})`
       : undefined;
     const payload = {
       warehouseId: warehouse?.id || warehouseId,
@@ -358,8 +350,8 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
       country: country.trim(),
       destination,
       // Backend fields — pack structured ship-to + attachment reference
-      shippingTerms: [destination, attachmentNote].filter(Boolean).join(" | "),
-      customerPo: attachment?.name,
+      shippingTerms: [destination, attachmentNote].filter(Boolean).join(" | ").slice(0, 500),
+      customerPo: safeAttachName?.slice(0, 180),
       lines: lines
         .filter((l) => l.materialCode)
         .map((l) => ({
@@ -402,7 +394,14 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
           body: JSON.stringify(payload),
         });
       }
-    } catch {
+      // Keep local demo store in sync even when API succeeds
+      upsertDemoItem("outbound", DEMO_OUTBOUND, record);
+    } catch (e) {
+      if (!shouldFallbackToDemo(e)) {
+        throw e instanceof ApiError
+          ? e
+          : new Error("Could not save shipment — not authorized or rejected by server.");
+      }
       upsertDemoItem("outbound", DEMO_OUTBOUND, record);
     }
     return record;
@@ -444,14 +443,20 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
         } satisfies Partial<OutboundOrder> as OutboundOrder);
 
       const destination = shipToSummary || existing.destination || "";
-      const attachmentNote = attachment
-        ? `Attachment: ${attachment.name} (${formatFileSize(attachment.size)})`
+      const safeAttachName = attachment
+        ? sanitizeAttachmentFilename(attachment.name)
+        : undefined;
+      const attachmentNote = safeAttachName
+        ? `Attachment: ${safeAttachName} (${formatFileSize(attachment!.size)})`
         : undefined;
       const payload = {
         warehouseId: existing.warehouseId || warehouseId,
         customerId: existing.customerId || customerId,
-        customerPo: attachment?.name,
-        shippingTerms: [destination, attachmentNote].filter(Boolean).join(" | "),
+        customerPo: safeAttachName?.slice(0, 180),
+        shippingTerms: [destination, attachmentNote]
+          .filter(Boolean)
+          .join(" | ")
+          .slice(0, 500),
         carrier: existing.carrier || carrier || undefined,
         trackingNumber:
           existing.trackingNumber || trackingNumber.trim() || undefined,
@@ -473,7 +478,9 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
         orderNumber: orderNumber || existing.orderNumber,
         status: "Shipped",
         shippedAt: existing.shippedAt,
-        attachment: attachment || undefined,
+        attachment: attachment
+          ? { ...attachment, name: safeAttachName || attachment.name }
+          : undefined,
         destination,
         address: address || existing.address,
         state: state || existing.state,
@@ -486,10 +493,15 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
           method: "PUT",
           body: JSON.stringify(payload),
         });
-      } catch {
-        // Demo / offline — API attachment update unavailable
+        upsertDemoItem("outbound", DEMO_OUTBOUND, record);
+      } catch (e) {
+        if (!shouldFallbackToDemo(e)) {
+          throw e instanceof ApiError
+            ? e
+            : new Error("Not authorized to update this shipped attachment.");
+        }
+        upsertDemoItem("outbound", DEMO_OUTBOUND, record);
       }
-      upsertDemoItem("outbound", DEMO_OUTBOUND, record);
       setMessage(
         attachment
           ? "Attachment saved on shipped order."
@@ -705,7 +717,9 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
                 Attach document reference
               </span>
               <span className="text-xs text-[var(--muted)]">
-                PDF, Office, image, or text — max 1.5 MB
+                PDF, Office, PNG/JPEG, TXT, or CSV — max{" "}
+                {(MAX_ATTACHMENT_BYTES / (1024 * 1024)).toFixed(1)} MB. SVG/HTML
+                blocked.
               </span>
               <input
                 type="file"

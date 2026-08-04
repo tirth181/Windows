@@ -4,6 +4,10 @@ import {
   downloadEml,
   type EmailAttachment,
 } from "@/lib/compose-email";
+import {
+  isSafeImageDataUrl,
+  sanitizeAttachmentFilename,
+} from "@/lib/secure-attachment";
 import { formatFileSize, formatShipTo } from "@/lib/ship-to";
 import { printHtmlDocument } from "@/lib/print-document";
 import {
@@ -134,15 +138,13 @@ export function collectShipLogAttachments(
 }
 
 function isImageAttachment(att: DocumentAttachment): boolean {
-  return (
-    att.type.startsWith("image/") ||
-    /\.(png|jpe?g|gif|webp)$/i.test(att.name)
-  );
+  return isSafeImageDataUrl(att.dataUrl);
 }
 
 function isPdfAttachment(att: DocumentAttachment): boolean {
   return (
-    att.type === "application/pdf" || /\.pdf$/i.test(att.name)
+    (att.type === "application/pdf" || /\.pdf$/i.test(att.name)) &&
+    Boolean(att.dataUrl)
   );
 }
 
@@ -428,10 +430,10 @@ export function buildShipLogPrintHtml(
       : attachments
           .map((a) => {
             const att = a.attachment;
-            const img =
-              att.dataUrl && isImageAttachment(att)
-                ? `<img src="${att.dataUrl}" alt="${escapeHtml(att.name)}" />`
-                : "";
+            const safeName = sanitizeAttachmentFilename(att.name);
+            const img = isImageAttachment(att)
+              ? `<img src="${att.dataUrl}" alt="${escapeHtml(safeName)}" />`
+              : "";
             const note =
               att.dataUrl && !isImageAttachment(att)
                 ? `<p class="muted" style="margin-top:6px">File attached${isPdfAttachment(att) ? " (PDF)" : ""} — open the digital Ship Log to download the full document.</p>`
@@ -442,7 +444,7 @@ export function buildShipLogPrintHtml(
       <div class="attach">
         <strong>${escapeHtml(a.orderNumber)}</strong>
         <span class="muted"> · ${escapeHtml(a.customerName || "—")}</span>
-        <div style="margin-top:4px"><strong>${escapeHtml(att.name)}</strong></div>
+        <div style="margin-top:4px"><strong>${escapeHtml(safeName)}</strong></div>
         <div class="muted">${escapeHtml(formatFileSize(att.size))}${
           att.type ? ` · ${escapeHtml(att.type)}` : ""
         }</div>
