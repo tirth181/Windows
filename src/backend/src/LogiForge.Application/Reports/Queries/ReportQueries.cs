@@ -25,6 +25,7 @@ public class GetReportCatalogQueryHandler : IRequestHandler<GetReportCatalogQuer
 
         IReadOnlyList<ReportDefinitionDto> catalog =
         [
+            new("ship_log", "Ship Log", "Outbound shipments by day — all orders confirmed shipped on a selected day"),
             new("inbound", "Inbound Report", "Received and draft inbound loads"),
             new("outbound", "Outbound Report", "Shipments and open orders"),
             new("inventory", "Inventory Report", "Current on-hand inventory"),
@@ -110,6 +111,28 @@ public class ExportReportQueryHandler : IRequestHandler<ExportReportQuery, byte[
                     {
                         o.OrderNumber, o.CustomerPo, Customer = o.Customer!.Name, o.Carrier,
                         o.ShipmentDate, Status = o.Status.ToString(), o.TotalWeight, o.TotalPallets
+                    }).ToListAsync(cancellationToken);
+                return _excel.ExportOutbound(rows, companyName);
+            }
+            case "ship_log":
+            {
+                var q = _outbound.Query().Include(o => o.Customer)
+                    .Where(o => o.Status == OutboundStatus.Shipped);
+                if (request.WarehouseId is not null)
+                    q = q.Where(o => o.WarehouseId == request.WarehouseId);
+                var rows = await q
+                    .OrderByDescending(o => o.ShippedAt ?? o.ShipmentDate)
+                    .Select(o => new
+                    {
+                        o.OrderNumber,
+                        Customer = o.Customer!.Name,
+                        o.Carrier,
+                        o.TrackingNumber,
+                        o.ShipmentDate,
+                        o.ShippedAt,
+                        Status = o.Status.ToString(),
+                        o.TotalWeight,
+                        o.TotalPallets
                     }).ToListAsync(cancellationToken);
                 return _excel.ExportOutbound(rows, companyName);
             }
