@@ -36,6 +36,7 @@ import {
   plantsForCompany,
 } from "@/lib/storage-plants";
 import { printInboundReceipt } from "@/lib/print-document";
+import { applyReceivedInboundToInventory } from "@/lib/receive-to-inventory";
 import { formatFileSize } from "@/lib/ship-to";
 import { formatWeight } from "@/lib/utils";
 import type {
@@ -500,7 +501,7 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
     setMessage(null);
     try {
       const saved = await persist("Draft");
-      let received: InboundLoad = {
+      const received: InboundLoad = {
         ...saved,
         status: "Received",
         receivedAt: new Date().toISOString(),
@@ -508,12 +509,20 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
       try {
         await apiFetch(`/inbound/${saved.id}/receive`, { method: "POST" });
       } catch {
-        upsertDemoItem("inbound", DEMO_INBOUND, received);
+        // Demo / offline path — API receive unavailable
       }
+      // Always persist received status + post lines into inventory locally
+      // (API also posts inventory when online; local store keeps demo inventory in sync)
+      upsertDemoItem("inbound", DEMO_INBOUND, received);
+      const posted = applyReceivedInboundToInventory(received);
       setLoadNumber(saved.loadNumber);
       setStatus("Received");
       setDone(true);
-      setMessage("Load received into inventory.");
+      setMessage(
+        posted.length
+          ? `Load received — ${posted.length} material line${posted.length === 1 ? "" : "s"} added to inventory.`
+          : "Load received into inventory.",
+      );
       openPreview(received, true);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Receive failed.");
