@@ -67,7 +67,7 @@ Demo tenant: **Harborline Logistics** · Warehouse **DFW1**
 
 The marketing site does **not** open the product upfront. Visitors must submit:
 
-- Full name · Company name · Position · Brief use case
+- Full name · Work email · Company name · Position · Brief use case
 
 Submissions are emailed to `DEMO_REQUEST_TO` (default `tirthsoni1810@gmail.com`). Delivery order:
 
@@ -75,6 +75,8 @@ Submissions are emailed to `DEMO_REQUEST_TO` (default `tirthsoni1810@gmail.com`)
 2. SMTP (`SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` — Gmail App Password works)
 3. Browser FormSubmit fallback to the same inbox
 4. Mailto fallback if networked providers are blocked
+
+Missing server email config no longer shows an error to visitors — the form still completes and delivers via client fallback.
 
 After a successful submit, that browser session may continue to `/login`.
 

@@ -26,12 +26,13 @@ const Field = forwardRef<
     name: string;
     value: string;
     onChange: (value: string) => void;
+    type?: string;
     autoComplete?: string;
     placeholder?: string;
     required?: boolean;
   }
 >(function Field(
-  { label, name, value, onChange, autoComplete, placeholder, required },
+  { label, name, value, onChange, type = "text", autoComplete, placeholder, required },
   ref,
 ) {
   return (
@@ -41,6 +42,7 @@ const Field = forwardRef<
       </span>
       <input
         ref={ref}
+        type={type}
         name={name}
         autoComplete={autoComplete}
         required={required}
@@ -53,36 +55,64 @@ const Field = forwardRef<
   );
 });
 
-async function deliverViaFormSubmit(payload: {
+type RequestPayload = {
   name: string;
+  email: string;
   company: string;
   position: string;
   useCase: string;
-}): Promise<void> {
-  const response = await fetch(
-    `https://formsubmit.co/ajax/${encodeURIComponent(DEMO_REQUEST_TO)}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        name: payload.name,
-        company: payload.company,
-        position: payload.position,
-        useCase: payload.useCase,
-        _subject: `LogiForge demo request — ${payload.company}`,
-        _template: "table",
-        _captcha: "false",
-      }),
-    },
-  );
+};
 
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || "Could not email your request");
+async function deliverViaFormSubmit(payload: RequestPayload): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `https://formsubmit.co/ajax/${encodeURIComponent(DEMO_REQUEST_TO)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          name: payload.name,
+          email: payload.email,
+          _replyto: payload.email,
+          company: payload.company,
+          position: payload.position,
+          useCase: payload.useCase,
+          _subject: `LogiForge demo request — ${payload.company}`,
+          _template: "table",
+          _captcha: "false",
+        }),
+      },
+    );
+    return response.ok;
+  } catch {
+    return false;
   }
+}
+
+function openMailto(payload: RequestPayload): void {
+  const subject = encodeURIComponent(
+    `LogiForge demo request — ${payload.company}`,
+  );
+  const body = encodeURIComponent(
+    [
+      `Name: ${payload.name}`,
+      `Email: ${payload.email}`,
+      `Company: ${payload.company}`,
+      `Position: ${payload.position}`,
+      "",
+      "Use case:",
+      payload.useCase,
+    ].join("\n"),
+  );
+  const anchor = document.createElement("a");
+  anchor.href = `mailto:${DEMO_REQUEST_TO}?subject=${subject}&body=${body}`;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
 }
 
 export function DemoRequestForm({ open, onClose }: DemoRequestFormProps) {
@@ -90,6 +120,7 @@ export function DemoRequestForm({ open, onClose }: DemoRequestFormProps) {
   const titleId = useId();
   const firstFieldRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [company, setCompany] = useState("");
   const [position, setPosition] = useState("");
   const [useCase, setUseCase] = useState("");
@@ -120,6 +151,7 @@ export function DemoRequestForm({ open, onClose }: DemoRequestFormProps) {
     setError(null);
     const parsed = demoRequestSchema.safeParse({
       name,
+      email,
       company,
       position,
       useCase,
@@ -130,65 +162,61 @@ export function DemoRequestForm({ open, onClose }: DemoRequestFormProps) {
       return;
     }
 
+    const payload: RequestPayload = {
+      name: parsed.data.name,
+      email: parsed.data.email,
+      company: parsed.data.company,
+      position: parsed.data.position,
+      useCase: parsed.data.useCase,
+    };
+
     setLoading(true);
     try {
-      const response = await fetch("/api/demo-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed.data),
-      });
-      const data = (await response.json()) as {
-        ok?: boolean;
-        error?: string;
-        fallback?: string;
-      };
+      let serverDelivered = false;
 
-      if (!response.ok || !data.ok) {
-        if (data.fallback === "formsubmit") {
-          await deliverViaFormSubmit(parsed.data);
-        } else {
-          throw new Error(data.error || "Request failed");
+      try {
+        const response = await fetch("/api/demo-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(parsed.data),
+        });
+        if (response.ok) {
+          const data = (await response.json()) as {
+            ok?: boolean;
+            delivery?: string;
+            error?: string;
+          };
+          if (data.ok && data.delivery === "server") {
+            serverDelivered = true;
+          } else if (!data.ok && data.error && response.status === 400) {
+            setError(data.error);
+            return;
+          }
+        } else if (response.status === 400) {
+          const data = (await response.json()) as { error?: string };
+          setError(data.error || "Please check the form and try again.");
+          return;
+        }
+      } catch {
+        // API unreachable — continue with client delivery
+      }
+
+      if (!serverDelivered) {
+        const emailed = await deliverViaFormSubmit(payload);
+        if (!emailed) {
+          openMailto(payload);
         }
       }
 
       markAccessRequestCompleted({
-        name: parsed.data.name,
-        company: parsed.data.company,
-        position: parsed.data.position,
+        name: payload.name,
+        company: payload.company,
+        position: payload.position,
         submittedAt: new Date().toISOString(),
       });
       setDone(true);
-    } catch (err) {
-      // Last-resort: open the visitor's mail client addressed to the owner.
-      try {
-        const subject = encodeURIComponent(
-          `LogiForge demo request — ${parsed.data.company}`,
-        );
-        const body = encodeURIComponent(
-          [
-            `Name: ${parsed.data.name}`,
-            `Company: ${parsed.data.company}`,
-            `Position: ${parsed.data.position}`,
-            "",
-            "Use case:",
-            parsed.data.useCase,
-          ].join("\n"),
-        );
-        window.location.href = `mailto:${DEMO_REQUEST_TO}?subject=${subject}&body=${body}`;
-        markAccessRequestCompleted({
-          name: parsed.data.name,
-          company: parsed.data.company,
-          position: parsed.data.position,
-          submittedAt: new Date().toISOString(),
-        });
-        setDone(true);
-      } catch {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Could not submit your request. Please try again.",
-        );
-      }
+    } catch {
+      setError("Could not submit your request. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -251,6 +279,16 @@ export function DemoRequestForm({ open, onClose }: DemoRequestFormProps) {
               autoComplete="name"
               value={name}
               onChange={setName}
+              required
+            />
+            <Field
+              label="Work email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={setEmail}
+              placeholder="you@company.com"
               required
             />
             <Field

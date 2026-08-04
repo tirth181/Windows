@@ -9,6 +9,7 @@ const TO_EMAIL =
 
 type Payload = {
   name: string;
+  email: string;
   company: string;
   position: string;
   useCase: string;
@@ -21,6 +22,7 @@ function buildText(payload: Payload): string {
     "New LogiForge access / demo request",
     "",
     `Name: ${payload.name}`,
+    `Email: ${payload.email}`,
     `Company: ${payload.company}`,
     `Position: ${payload.position}`,
     "",
@@ -36,6 +38,7 @@ function buildHtml(payload: Payload): string {
     <h2>New LogiForge demo request</h2>
     <table style="border-collapse:collapse;font-family:sans-serif">
       <tr><td style="padding:6px 12px 6px 0"><strong>Name</strong></td><td>${escapeHtml(payload.name)}</td></tr>
+      <tr><td style="padding:6px 12px 6px 0"><strong>Email</strong></td><td><a href="mailto:${escapeHtml(payload.email)}">${escapeHtml(payload.email)}</a></td></tr>
       <tr><td style="padding:6px 12px 6px 0"><strong>Company</strong></td><td>${escapeHtml(payload.company)}</td></tr>
       <tr><td style="padding:6px 12px 6px 0"><strong>Position</strong></td><td>${escapeHtml(payload.position)}</td></tr>
     </table>
@@ -69,6 +72,7 @@ async function sendWithResend(payload: Payload): Promise<SendResult> {
     body: JSON.stringify({
       from,
       to: [TO_EMAIL],
+      reply_to: payload.email,
       subject: `LogiForge demo request — ${payload.company}`,
       text: buildText(payload),
       html: buildHtml(payload),
@@ -101,10 +105,10 @@ async function sendWithSmtp(payload: Payload): Promise<SendResult> {
   await transporter.sendMail({
     from: process.env.DEMO_REQUEST_FROM || `LogiForge <${user}>`,
     to: TO_EMAIL,
+    replyTo: payload.email,
     subject: `LogiForge demo request — ${payload.company}`,
     text: buildText(payload),
     html: buildHtml(payload),
-    replyTo: user,
   });
 
   return { ok: true, provider: "smtp" };
@@ -128,11 +132,12 @@ export async function POST(request: Request) {
 
   // Honeypot tripped — pretend success to bots
   if (parsed.data.website) {
-    return NextResponse.json({ ok: true, provider: "honeypot" });
+    return NextResponse.json({ ok: true, delivery: "accepted" });
   }
 
   const payload: Payload = {
     name: parsed.data.name,
+    email: parsed.data.email,
     company: parsed.data.company,
     position: parsed.data.position,
     useCase: parsed.data.useCase,
@@ -140,25 +145,28 @@ export async function POST(request: Request) {
 
   const resend = await sendWithResend(payload);
   if (resend.ok) {
-    return NextResponse.json({ ok: true, provider: resend.provider });
+    return NextResponse.json({ ok: true, delivery: "server", provider: resend.provider });
   }
 
-  const smtp = await sendWithSmtp(payload);
-  if (smtp.ok) {
-    return NextResponse.json({ ok: true, provider: smtp.provider });
+  try {
+    const smtp = await sendWithSmtp(payload);
+    if (smtp.ok) {
+      return NextResponse.json({ ok: true, delivery: "server", provider: smtp.provider });
+    }
+  } catch (err) {
+    console.warn("SMTP send failed", err);
   }
 
-  console.warn("Demo request server delivery unavailable; client fallback needed", {
-    resend: resend.error,
-    smtp: smtp.error,
+  // No server provider configured — still return OK so the UI never shows
+  // an internal config error. The browser will email via FormSubmit/mailto.
+  console.warn("Demo request using client delivery", {
     to: TO_EMAIL,
+    from: payload.email,
   });
 
-  // Tell the browser to deliver via FormSubmit (visitor IP usually works).
   return NextResponse.json({
-    ok: false,
-    fallback: "formsubmit",
+    ok: true,
+    delivery: "client",
     to: TO_EMAIL,
-    error: "Server email provider not configured",
-  }, { status: 503 });
+  });
 }
