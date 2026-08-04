@@ -1,0 +1,8 @@
+namespace LogiForge.Application.Common;
+
+public record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, int TotalCount)
+{
+    public int TotalPages => PageSize == 0 ? 0 : (int)Math.Ceiling(TotalCount / (double)PageSize);
+}
+
+public record ApiResponse<T>(T Data, string? Message = null);

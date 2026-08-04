@@ -1,0 +1,35 @@
+# .NET
+**/bin/
+**/obj/
+**/*.user
+**/TestResults/
+*.swp
+
+# Node / Next
+**/node_modules/
+**/.next/
+**/out/
+**/dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+appsettings.*.local.json
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.log
+
+# Docker
+pgdata/
+
+# Misc
+coverage/
+.turbo/
+EOF
+
