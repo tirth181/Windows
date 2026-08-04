@@ -66,7 +66,7 @@ Composition (not a marketing hero):
 
 ### Outbound
 - Header + line grid with inventory picker
-- Live totals: weight, pallets, materials, boxes
+- Live totals: weight (lbs), pallets, materials, boxes/drums
 - **Confirm Shipment** with validation modal
 
 ### AI Assistant

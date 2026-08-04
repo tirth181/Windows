@@ -78,7 +78,7 @@ export function ReceivingForm() {
       { field: "locationCode", headerName: "Location", editable: true, flex: 0.9, minWidth: 110 },
       {
         field: "weight",
-        headerName: "Weight (kg)",
+        headerName: "Weight (lbs)",
         editable: true,
         type: "numericColumn",
         flex: 0.9,
@@ -94,11 +94,11 @@ export function ReceivingForm() {
       },
       {
         field: "boxCount",
-        headerName: "Boxes",
+        headerName: "Boxes/drums",
         editable: true,
         type: "numericColumn",
-        flex: 0.7,
-        minWidth: 90,
+        flex: 1,
+        minWidth: 120,
       },
     ],
     [],
@@ -243,7 +243,8 @@ export function ReceivingForm() {
             Qty <strong className="tabular-nums">{totals.qty}</strong>
           </span>
           <span>
-            Boxes <strong className="tabular-nums">{totals.boxes}</strong>
+            Boxes/drums{" "}
+            <strong className="tabular-nums">{totals.boxes}</strong>
           </span>
         </div>
         <Button

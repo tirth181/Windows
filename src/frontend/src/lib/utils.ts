@@ -11,6 +11,6 @@ export function formatNumber(value: number, digits = 0): string {
   }).format(value);
 }
 
-export function formatWeight(kg: number): string {
-  return `${formatNumber(kg, 1)} kg`;
+export function formatWeight(lbs: number): string {
+  return `${formatNumber(lbs, 1)} lbs`;
 }

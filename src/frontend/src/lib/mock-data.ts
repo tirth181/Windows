@@ -341,7 +341,7 @@ export const DEMO_FIELD_MAPPINGS: FieldMapping[] = [
   { id: "fm-1", sourceField: "sku", targetField: "materialCode" },
   { id: "fm-2", sourceField: "lot", targetField: "batchNumber" },
   { id: "fm-3", sourceField: "qty", targetField: "quantity", transform: "toDecimal" },
-  { id: "fm-4", sourceField: "wt_kg", targetField: "weight" },
+  { id: "fm-4", sourceField: "wt_lbs", targetField: "weight" },
   { id: "fm-5", sourceField: "pallet_barcode", targetField: "palletId" },
 ];
 

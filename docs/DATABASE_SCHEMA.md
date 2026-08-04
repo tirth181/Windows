@@ -6,7 +6,7 @@
 - `created_at`, `updated_at`, `created_by`, `updated_by` on mutable tables
 - Soft delete via `is_deleted` + `deleted_at` where appropriate
 - All tenant data includes `company_id`
-- Monetary/weight: `numeric(18,4)`; quantities: `numeric(18,4)`
+- Weight stored in **lbs** as `numeric(18,4)`; quantities: `numeric(18,4)`; package counts are boxes/drums
 - Enums stored as strings (checked) or smallint with application mapping
 
 ## Core Identity & Tenancy

@@ -74,7 +74,7 @@ export function ShipmentForm() {
       { field: "palletId", headerName: "Pallet", flex: 1, minWidth: 110, cellClass: "font-mono text-xs" },
       {
         field: "weight",
-        headerName: "Weight (kg)",
+        headerName: "Weight (lbs)",
         editable: true,
         type: "numericColumn",
         flex: 0.9,
@@ -90,7 +90,7 @@ export function ShipmentForm() {
       },
       {
         field: "boxCount",
-        headerName: "Boxes",
+        headerName: "Boxes/drums",
         editable: true,
         type: "numericColumn",
         flex: 0.7,
@@ -231,7 +231,8 @@ export function ShipmentForm() {
             Materials <strong className="tabular-nums">{totals.materials}</strong>
           </span>
           <span>
-            Boxes <strong className="tabular-nums">{totals.boxes}</strong>
+            Boxes/drums{" "}
+            <strong className="tabular-nums">{totals.boxes}</strong>
           </span>
         </div>
         <Button

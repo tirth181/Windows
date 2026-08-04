@@ -61,7 +61,7 @@ export default function OutboundPage() {
               <th className="px-4 py-3 font-semibold">Warehouse</th>
               <th className="px-4 py-3 font-semibold">Ship date</th>
               <th className="px-4 py-3 font-semibold">Destination</th>
-              <th className="px-4 py-3 font-semibold">Weight</th>
+              <th className="px-4 py-3 font-semibold">Weight (lbs)</th>
               <th className="px-4 py-3 font-semibold">Status</th>
             </tr>
           </thead>

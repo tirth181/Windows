@@ -106,10 +106,10 @@ export function InventoryGrid() {
       { field: "locationCode", headerName: "Location", flex: 0.9, minWidth: 100 },
       {
         field: "remainingWeight",
-        headerName: "Remaining kg",
+        headerName: "Remaining lbs",
         type: "numericColumn",
         flex: 0.9,
-        minWidth: 110,
+        minWidth: 120,
       },
       {
         field: "quantity",
@@ -117,6 +117,13 @@ export function InventoryGrid() {
         type: "numericColumn",
         flex: 0.7,
         minWidth: 80,
+      },
+      {
+        field: "boxCount",
+        headerName: "Boxes/drums",
+        type: "numericColumn",
+        flex: 0.9,
+        minWidth: 120,
       },
       {
         field: "status",
