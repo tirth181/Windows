@@ -1,7 +1,9 @@
 import { getAccessToken, clearTokens } from "./auth";
 
+// Prefer same-origin proxy (/api/v1 → ASP.NET) so public tunnels work without CORS.
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5080/api/v1";
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined" ? "/api/v1" : "http://127.0.0.1:5080/api/v1");
 
 export class ApiError extends Error {
   status: number;
