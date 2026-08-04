@@ -1,4 +1,10 @@
-import { getAccessToken, clearTokens } from "./auth";
+import {
+  getAccessToken,
+  clearTokens,
+  setTokens,
+  consumeAuthBounceGuard,
+  isDemoToken,
+} from "./auth";
 
 // Prefer same-origin proxy (/api/v1 → ASP.NET) so public tunnels work without CORS.
 const API_BASE =
@@ -17,11 +23,45 @@ export class ApiError extends Error {
   }
 }
 
+async function forceLogoutAndRedirect(): Promise<void> {
+  clearTokens();
+  if (typeof window === "undefined") return;
+
+  try {
+    const { useAuthStore } = await import("@/stores/auth-store");
+    useAuthStore.getState().logout();
+  } catch {
+    // ignore circular import / SSR edge cases
+  }
+
+  const path = window.location.pathname;
+  if (path.startsWith("/login") || path.startsWith("/auth")) return;
+
+  // Prevent login↔app hard-navigation loops when auth state is inconsistent
+  if (!consumeAuthBounceGuard()) return;
+  window.location.replace("/login");
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token = getAccessToken();
+  let token = getAccessToken();
+
+  // Keep Bearer token in sync with persisted zustand session (demo or real)
+  if (!token && typeof window !== "undefined") {
+    try {
+      const { useAuthStore } = await import("@/stores/auth-store");
+      const storeToken = useAuthStore.getState().token;
+      if (storeToken) {
+        setTokens(storeToken);
+        token = storeToken;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   const headers = new Headers(options.headers);
 
   if (!headers.has("Content-Type") && options.body) {
@@ -37,10 +77,13 @@ export async function apiFetch<T>(
   });
 
   if (response.status === 401) {
-    clearTokens();
-    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-      window.location.href = "/login";
+    // Demo sessions often hit a live API that rejects demo-token.
+    // Never hard-redirect — let callers fall back to local demo data.
+    if (isDemoToken(token) || path.startsWith("/auth/login")) {
+      throw new ApiError(401, "Unauthorized");
     }
+
+    await forceLogoutAndRedirect();
     throw new ApiError(401, "Unauthorized");
   }
 

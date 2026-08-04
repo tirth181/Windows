@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { AuthUser, Warehouse } from "@/types";
-import { clearTokens, setTokens } from "@/lib/auth";
+import { clearTokens, setTokens, clearAuthBounceGuard } from "@/lib/auth";
 import { ALL_PERMISSIONS, DEMO_WAREHOUSES } from "@/lib/mock-data";
 
 interface AuthState {
@@ -42,6 +42,7 @@ export const useAuthStore = create<AuthState>()(
       loginDemo: (email, displayName) => {
         const token = "demo-token";
         setTokens(token);
+        clearAuthBounceGuard();
         set({
           user: demoUser(email, displayName),
           token,
@@ -51,6 +52,7 @@ export const useAuthStore = create<AuthState>()(
       },
       login: (user, token, refreshToken) => {
         setTokens(token, refreshToken);
+        clearAuthBounceGuard();
         set({ user, token });
       },
       logout: () => {
@@ -79,6 +81,9 @@ export const useAuthStore = create<AuthState>()(
         selectedWarehouseId: state.selectedWarehouseId,
       }),
       onRehydrateStorage: () => (state) => {
+        if (state?.token) {
+          setTokens(state.token);
+        }
         state?.setHydrated(true);
       },
     },

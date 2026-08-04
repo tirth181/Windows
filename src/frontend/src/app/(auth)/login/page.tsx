@@ -62,14 +62,10 @@ export default function LoginPage() {
 
   function signInMicrosoft() {
     setError(null);
-    const base =
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5080/api/v1";
-    // Attempt Entra challenge; fall back to demo session for offline UI
-    window.location.href = `${base}/auth/entra/challenge`;
-    window.setTimeout(() => {
-      loginDemo("entra.user@logiforge.demo", "Entra Operator");
-      router.replace("/dashboard");
-    }, 800);
+    // Entra is not wired in this demo environment — sign in locally without
+    // navigating away (that hard navigation caused open/close bounce).
+    loginDemo("entra.user@logiforge.demo", "Entra Operator");
+    router.replace("/dashboard");
   }
 
   return (
