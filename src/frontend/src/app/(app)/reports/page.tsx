@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { format } from "date-fns";
 import { FileBarChart2, Play } from "lucide-react";
 import { apiFetchOrDemo } from "@/lib/api";
 import { DEMO_REPORTS } from "@/lib/mock-data";
 import type { ReportDefinition } from "@/types";
-import { Button, DemoBanner, PageHeader, Badge } from "@/components/ui";
+import {
+  Button,
+  DemoBanner,
+  FormattedDate,
+  PageHeader,
+  Badge,
+} from "@/components/ui";
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<ReportDefinition[]>(DEMO_REPORTS);
@@ -60,9 +65,14 @@ export default function ReportsPage() {
                 </p>
                 <p className="mt-1 text-xs text-[var(--muted)]">
                   Last run:{" "}
-                  {report.lastRunAt
-                    ? format(new Date(report.lastRunAt), "MMM d, yyyy HH:mm")
-                    : "Never"}
+                  {report.lastRunAt ? (
+                    <FormattedDate
+                      date={report.lastRunAt}
+                      pattern="MMM d, yyyy HH:mm"
+                    />
+                  ) : (
+                    "Never"
+                  )}
                 </p>
               </div>
             </div>

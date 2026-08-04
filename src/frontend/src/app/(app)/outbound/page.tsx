@@ -2,13 +2,18 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { format } from "date-fns";
 import { Pencil, Plus } from "lucide-react";
 import { apiFetchOrDemo } from "@/lib/api";
 import { DEMO_OUTBOUND } from "@/lib/mock-data";
 import { loadDemoCollection } from "@/lib/demo-store";
 import type { OutboundOrder } from "@/types";
-import { Button, DemoBanner, PageHeader, StatusBadge } from "@/components/ui";
+import {
+  Button,
+  DemoBanner,
+  FormattedDate,
+  PageHeader,
+  StatusBadge,
+} from "@/components/ui";
 import { formatWeight } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -89,7 +94,7 @@ export default function OutboundPage() {
                 <td className="px-4 py-3">{row.customerName}</td>
                 <td className="px-4 py-3">{row.warehouseName}</td>
                 <td className="px-4 py-3 tabular-nums text-[var(--muted)]">
-                  {format(new Date(row.shipDate), "MMM d, HH:mm")}
+                  <FormattedDate date={row.shipDate} />
                 </td>
                 <td className="px-4 py-3">{row.destination || "—"}</td>
                 <td className="px-4 py-3 tabular-nums">

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { format } from "date-fns";
 import { Pencil, UserPlus } from "lucide-react";
 import { apiFetch, apiFetchOrDemo } from "@/lib/api";
 import { DEMO_USERS } from "@/lib/mock-data";
@@ -11,6 +10,7 @@ import {
   Badge,
   Button,
   DemoBanner,
+  FormattedDate,
   Input,
   Modal,
   PageHeader,
@@ -196,9 +196,11 @@ export default function UsersPage() {
                   </div>
                 </td>
                 <td className="px-4 py-3 tabular-nums text-[var(--muted)]">
-                  {user.lastLoginAt
-                    ? format(new Date(user.lastLoginAt), "MMM d, HH:mm")
-                    : "—"}
+                  {user.lastLoginAt ? (
+                    <FormattedDate date={user.lastLoginAt} />
+                  ) : (
+                    "—"
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <StatusBadge status={user.isActive ? "Active" : "Suspended"} />

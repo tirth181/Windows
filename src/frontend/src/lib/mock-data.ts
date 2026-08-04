@@ -519,7 +519,8 @@ export const DEMO_AI_WELCOME: AiMessage = {
   role: "assistant",
   content:
     "I'm the LogiForge operations assistant. Ask about inventory, inbound queues, outbound delays, or 3PL company utilization. I can suggest next actions when you're authorized.",
-  createdAt: new Date().toISOString(),
+  // Fixed timestamp — avoids SSR/client hydration mismatch from new Date()
+  createdAt: "2026-08-04T08:00:00.000Z",
   actions: [
     { label: "Open inbound", href: "/inbound" },
     { label: "View inventory", href: "/inventory" },

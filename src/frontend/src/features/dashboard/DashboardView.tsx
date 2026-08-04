@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
 import {
   ArrowRight,
   Bot,
@@ -17,14 +16,29 @@ import {
   DEMO_DASHBOARD,
 } from "@/lib/mock-data";
 import type { ActivityItem, AiInsight, DashboardSummary } from "@/types";
-import { DemoBanner, KpiTile, PageHeader, Badge } from "@/components/ui";
+import {
+  DemoBanner,
+  KpiTile,
+  PageHeader,
+  Badge,
+  RelativeTime,
+} from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { useMounted } from "@/hooks/use-mounted";
 
 export function DashboardView() {
+  const mounted = useMounted();
   const [summary, setSummary] = useState<DashboardSummary>(DEMO_DASHBOARD);
   const [activity, setActivity] = useState<ActivityItem[]>(DEMO_ACTIVITY);
   const [insights, setInsights] = useState<AiInsight[]>(DEMO_AI_INSIGHTS);
   const [demo, setDemo] = useState(true);
+  const [weekday, setWeekday] = useState("Today");
+
+  useEffect(() => {
+    setWeekday(
+      new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(new Date()),
+    );
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,14 +59,10 @@ export function DashboardView() {
     };
   }, []);
 
-  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(
-    new Date(),
-  );
-
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${weekday} operations`}
+        title={`${mounted ? weekday : "Today"} operations`}
         description="Live 3PL company pulse — inbound, on-hand, and outbound readiness."
       />
       <DemoBanner show={demo} />
@@ -166,8 +176,8 @@ export function DashboardView() {
                   {item.actor} · {item.entityType}
                 </p>
               </div>
-              <time className="text-xs text-[var(--muted)] tabular-nums">
-                {formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}
+              <time className="text-xs text-[var(--muted)] tabular-nums" dateTime={item.timestamp}>
+                <RelativeTime date={item.timestamp} />
               </time>
             </li>
           ))}

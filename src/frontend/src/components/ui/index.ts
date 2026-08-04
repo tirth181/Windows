@@ -7,3 +7,5 @@ export { KpiTile } from "./KpiTile";
 export { StatusBadge } from "./StatusBadge";
 export { DemoBanner } from "./DemoBanner";
 export { Modal } from "./Modal";
+export { RelativeTime } from "./RelativeTime";
+export { FormattedDate } from "./FormattedDate";

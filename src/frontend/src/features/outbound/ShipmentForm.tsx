@@ -78,7 +78,7 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
     selectedWarehouseId || DEMO_WAREHOUSES[0]?.id || "",
   );
   const [customerId, setCustomerId] = useState(DEMO_CUSTOMERS[0]?.id || "");
-  const [shipDate, setShipDate] = useState(new Date().toISOString().slice(0, 16));
+  const [shipDate, setShipDate] = useState("");
   const [carrier, setCarrier] = useState("");
   const [destination, setDestination] = useState("");
   const [lines, setLines] = useState<OutboundLine[]>([
@@ -92,6 +92,11 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
   const [loading, setLoading] = useState(isEdit);
 
   const readOnly = isEdit && status !== "Draft" && status !== "Picking";
+
+  useEffect(() => {
+    if (orderId) return;
+    setShipDate(new Date().toISOString().slice(0, 16));
+  }, [orderId]);
 
   useEffect(() => {
     if (!orderId) return;

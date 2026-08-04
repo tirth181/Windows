@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Sora, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import { AuthProvider } from "@/components/providers/AuthProvider";
 import "./globals.css";
 
 const sora = Sora({
@@ -34,11 +35,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${sora.variable} ${plexSans.variable} ${plexMono.variable} antialiased`}
+        suppressHydrationWarning
       >
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

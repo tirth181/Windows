@@ -79,9 +79,7 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
   const [supplierName, setSupplierName] = useState("");
   const [carrier, setCarrier] = useState("");
   const [trailerNumber, setTrailerNumber] = useState("");
-  const [arrivalDate, setArrivalDate] = useState(
-    new Date().toISOString().slice(0, 16),
-  );
+  const [arrivalDate, setArrivalDate] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<InboundLine[]>([newLine(), newLine()]);
   const [submitting, setSubmitting] = useState(false);
@@ -90,6 +88,12 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
   const [loading, setLoading] = useState(isEdit);
 
   const readOnly = isEdit && status !== "Draft";
+
+  useEffect(() => {
+    if (loadId) return;
+    // Set after mount so SSR and first client paint match (empty → then local now)
+    setArrivalDate(new Date().toISOString().slice(0, 16));
+  }, [loadId]);
 
   useEffect(() => {
     if (!loadId) return;

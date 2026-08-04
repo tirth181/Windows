@@ -74,6 +74,8 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "logiforge-auth",
+      // Avoid reading localStorage during SSR / first client paint (hydration mismatch)
+      skipHydration: true,
       partialize: (state) => ({
         user: state.user,
         token: state.token,

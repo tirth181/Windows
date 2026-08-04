@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
 import { ArrowRight, Plug, RefreshCw, FlaskConical } from "lucide-react";
 import { apiFetchOrDemo } from "@/lib/api";
 import { DEMO_FIELD_MAPPINGS, DEMO_INTEGRATIONS } from "@/lib/mock-data";
@@ -11,6 +10,7 @@ import {
   Button,
   DemoBanner,
   PageHeader,
+  RelativeTime,
   StatusBadge,
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -89,9 +89,12 @@ export default function IntegrationsPage() {
                       </span>
                       <span className="mt-1 block text-xs text-[var(--muted)]">
                         {conn.type}
-                        {conn.lastSyncAt
-                          ? ` · synced ${formatDistanceToNow(new Date(conn.lastSyncAt), { addSuffix: true })}`
-                          : ""}
+                        {conn.lastSyncAt ? (
+                          <>
+                            {" · synced "}
+                            <RelativeTime date={conn.lastSyncAt} />
+                          </>
+                        ) : null}
                       </span>
                     </span>
                   </button>

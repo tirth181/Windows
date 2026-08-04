@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { format } from "date-fns";
 import { Pencil, Plus } from "lucide-react";
 import { apiFetchOrDemo } from "@/lib/api";
 import { DEMO_INBOUND } from "@/lib/mock-data";
@@ -12,6 +11,7 @@ import {
   Badge,
   Button,
   DemoBanner,
+  FormattedDate,
   PageHeader,
   StatusBadge,
 } from "@/components/ui";
@@ -97,7 +97,7 @@ export default function InboundPage() {
                 </td>
                 <td className="px-4 py-3">{row.warehouseName}</td>
                 <td className="px-4 py-3 tabular-nums text-[var(--muted)]">
-                  {format(new Date(row.arrivalDate), "MMM d, HH:mm")}
+                  <FormattedDate date={row.arrivalDate} />
                 </td>
                 <td className="px-4 py-3 tabular-nums">{row.lineCount ?? "—"}</td>
                 <td className="px-4 py-3 tabular-nums">
