@@ -149,6 +149,9 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
   const [loading, setLoading] = useState(isEdit);
 
   const readOnly = isEdit && status !== "Draft" && status !== "Picking";
+  /** Attachments can still be added/replaced after ship (cancelled stays locked). */
+  const attachmentEditable =
+    status !== "Cancelled" && (!readOnly || (status === "Shipped" && canEdit));
 
   useEffect(() => {
     setKnownCustomers(loadKnownCustomers());
@@ -422,6 +425,83 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
     }
   }
 
+  async function handleSaveAttachment() {
+    if (!attachmentEditable || status !== "Shipped" || !orderId || !canEdit) return;
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      const existing =
+        getDemoItem("outbound", DEMO_OUTBOUND, orderId) ||
+        ({
+          id: orderId,
+          orderNumber,
+          warehouseId,
+          customerId,
+          customerName,
+          shipDate: shipDate ? new Date(shipDate).toISOString() : new Date().toISOString(),
+          status: "Shipped" as const,
+          lines: lines.filter((l) => l.materialCode),
+        } satisfies Partial<OutboundOrder> as OutboundOrder);
+
+      const destination = shipToSummary || existing.destination || "";
+      const attachmentNote = attachment
+        ? `Attachment: ${attachment.name} (${formatFileSize(attachment.size)})`
+        : undefined;
+      const payload = {
+        warehouseId: existing.warehouseId || warehouseId,
+        customerId: existing.customerId || customerId,
+        customerPo: attachment?.name,
+        shippingTerms: [destination, attachmentNote].filter(Boolean).join(" | "),
+        carrier: existing.carrier || carrier || undefined,
+        trackingNumber:
+          existing.trackingNumber || trackingNumber.trim() || undefined,
+        shipmentDate: existing.shipDate || new Date().toISOString(),
+        lines: (existing.lines || lines)
+          .filter((l) => l.materialCode && l.inventoryItemId)
+          .map((l) => ({
+            inventoryItemId: l.inventoryItemId,
+            weight: Number(l.weight) || 0,
+            quantity: Number(l.quantity) || 0,
+            boxCount: Number(l.boxCount) || 0,
+            palletCount: 1,
+          })),
+      };
+
+      const record: OutboundOrder = {
+        ...existing,
+        id: orderId,
+        orderNumber: orderNumber || existing.orderNumber,
+        status: "Shipped",
+        shippedAt: existing.shippedAt,
+        attachment: attachment || undefined,
+        destination,
+        address: address || existing.address,
+        state: state || existing.state,
+        postalCode: postalCode || existing.postalCode,
+        country: country || existing.country,
+      };
+
+      try {
+        await apiFetch(`/outbound/${orderId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        // Demo / offline — API attachment update unavailable
+      }
+      upsertDemoItem("outbound", DEMO_OUTBOUND, record);
+      setMessage(
+        attachment
+          ? "Attachment saved on shipped order."
+          : "Attachment removed from shipped order.",
+      );
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Could not save attachment.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function confirmShip() {
     if (!canConfirm || !canShip || readOnly) return;
     setSubmitting(true);
@@ -468,11 +548,13 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
       <PageHeader
         title={isEdit ? `Modify ${orderNumber || "shipment"}` : "Ship outbound"}
         description={
-          readOnly
-            ? "This order is locked because it is shipped or cancelled. View only."
-            : isEdit
-              ? "Update header fields and pick lines, then save or confirm shipment."
-              : "Type a storage location / bin to pick inventory, review totals, and confirm shipment."
+          status === "Cancelled"
+            ? "This order is cancelled and locked. View only."
+            : status === "Shipped"
+              ? "Shipment is locked, but you can still add or replace the document attachment."
+              : isEdit
+                ? "Update header fields and pick lines, then save or confirm shipment."
+                : "Type a storage location / bin to pick inventory, review totals, and confirm shipment."
         }
       />
 
@@ -566,6 +648,11 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
           <span className="mb-1.5 block text-sm font-medium text-[var(--brand-ink)]">
             Document attachment
           </span>
+          {status === "Shipped" && attachmentEditable ? (
+            <p className="mb-1.5 text-xs text-[var(--muted)]">
+              You can add or replace the packing list / BOL after shipping.
+            </p>
+          ) : null}
           {attachment ? (
             <div className="flex flex-wrap items-center gap-3 rounded-md border border-[var(--brand-steel)]/15 bg-[var(--surface-raised)] px-3 py-2.5">
               <Paperclip className="h-4 w-4 text-[var(--accent)]" aria-hidden />
@@ -578,25 +665,39 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
                   {attachment.type ? ` · ${attachment.type}` : ""}
                 </p>
               </div>
-              {!readOnly ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setAttachment(null);
-                    setAttachError(null);
-                  }}
-                >
-                  <X className="h-3.5 w-3.5" />
-                  Remove
-                </Button>
+              {attachmentEditable ? (
+                <>
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-[var(--brand-steel)]/20 bg-[var(--surface)] px-2.5 py-1.5 text-sm font-medium text-[var(--brand-ink)] hover:border-[var(--accent)]/40">
+                    Replace
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept={ATTACHMENT_ACCEPT}
+                      onChange={(e) => {
+                        void onAttachmentSelected(e.target.files);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setAttachment(null);
+                      setAttachError(null);
+                    }}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Remove
+                  </Button>
+                </>
               ) : null}
             </div>
           ) : (
             <label
               className={`flex cursor-pointer flex-col items-start gap-1 rounded-md border border-dashed border-[var(--brand-steel)]/25 bg-[var(--surface-raised)]/70 px-3 py-3 transition-colors hover:border-[var(--accent)]/40 ${
-                readOnly ? "pointer-events-none opacity-60" : ""
+                !attachmentEditable ? "pointer-events-none opacity-60" : ""
               }`}
             >
               <span className="inline-flex items-center gap-2 text-sm font-medium text-[var(--brand-ink)]">
@@ -610,7 +711,7 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
                 type="file"
                 className="sr-only"
                 accept={ATTACHMENT_ACCEPT}
-                disabled={readOnly}
+                disabled={!attachmentEditable}
                 onChange={(e) => {
                   void onAttachmentSelected(e.target.files);
                   e.target.value = "";
@@ -786,6 +887,17 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
             >
               <Save className="h-4 w-4" />
               {submitting ? "Saving…" : "Save changes"}
+            </Button>
+          ) : null}
+          {status === "Shipped" && attachmentEditable ? (
+            <Button
+              variant="secondary"
+              size="lg"
+              disabled={submitting}
+              onClick={() => void handleSaveAttachment()}
+            >
+              <Save className="h-4 w-4" />
+              {submitting ? "Saving…" : "Save attachment"}
             </Button>
           ) : null}
           {!readOnly && canShip ? (

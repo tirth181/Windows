@@ -130,9 +130,7 @@ export default function OutboundPage() {
                     <Link href={`/outbound/${row.id}`}>
                       <Button variant="outline" size="sm" type="button">
                         <Pencil className="h-3.5 w-3.5" />
-                        {row.status === "Draft" || row.status === "Picking"
-                          ? "Modify"
-                          : "View"}
+                        {row.status === "Cancelled" ? "View" : "Modify"}
                       </Button>
                     </Link>
                   ) : null}

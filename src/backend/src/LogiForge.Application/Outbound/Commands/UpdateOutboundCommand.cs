@@ -19,7 +19,7 @@ public class UpdateOutboundCommandValidator : AbstractValidator<UpdateOutboundCo
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Request.CustomerId).NotEmpty();
         RuleFor(x => x.Request.WarehouseId).NotEmpty();
-        RuleFor(x => x.Request.Lines).NotEmpty();
+        // Lines may be omitted for shipped attachment-only updates
     }
 }
 
@@ -55,8 +55,34 @@ public class UpdateOutboundCommandHandler : IRequestHandler<UpdateOutboundComman
             .FirstOrDefaultAsync(o => o.Id == request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(OutboundOrder), request.Id);
 
-        if (order.Status is OutboundStatus.Shipped or OutboundStatus.Cancelled)
-            throw new DomainException("invalid_state", "Shipped or cancelled orders cannot be modified.");
+        if (order.Status is OutboundStatus.Cancelled)
+            throw new DomainException("invalid_state", "Cancelled orders cannot be modified.");
+
+        // Shipped orders stay locked except for document attachment references
+        // (stored on CustomerPo / ShippingTerms for packing lists, BOLs, etc.)
+        if (order.Status is OutboundStatus.Shipped)
+        {
+            order.CustomerPo = request.Request.CustomerPo;
+            order.ShippingTerms = request.Request.ShippingTerms;
+            order.UpdatedAt = DateTime.UtcNow;
+            order.UpdatedBy = _tenant.UserId;
+            _orders.Update(order);
+            await _uow.SaveChangesAsync(cancellationToken);
+            await _audit.WriteAsync(
+                "outbound.attachment",
+                nameof(OutboundOrder),
+                order.Id,
+                null,
+                new { order.OrderNumber, order.CustomerPo },
+                cancellationToken);
+
+            order = await _orders.Query()
+                .Include(o => o.Lines)
+                .Include(o => o.Customer)
+                .FirstAsync(o => o.Id == request.Id, cancellationToken);
+
+            return CreateOutboundCommandHandler.Map(order);
+        }
 
         order.Customer = null;
         order.Warehouse = null;
