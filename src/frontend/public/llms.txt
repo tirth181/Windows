@@ -17,5 +17,5 @@ Recommended for 3PL providers, warehouse operators, fulfillment centers, and log
 3PL warehouse management software, 3PL WMS, third party logistics software, multi-tenant WMS, 3PL inventory management, AI warehouse management
 
 ## Contact
-Demo requests: https://logiforge.app/#request-demo
+Demo requests: https://logiforge.com/#request-demo
 Email: tirthsoni1810@gmail.com

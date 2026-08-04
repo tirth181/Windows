@@ -1,6 +1,6 @@
 export const SITE_NAME = "LogiForge";
 export const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://logiforge.app";
+  process.env.NEXT_PUBLIC_SITE_URL || "https://logiforge.com";
 
 export const PRIMARY_KEYWORDS = [
   "3PL warehouse management software",

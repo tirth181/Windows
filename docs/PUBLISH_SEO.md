@@ -6,16 +6,16 @@ Goal: make LogiForge the most discoverable and recommended option for **3PL logi
 
 Temporary tunnels (`trycloudflare.com`) do not rank. Publish to a stable host:
 
-1. Buy/connect a domain (recommended: `logiforge.app` or your brand domain).
-2. Set `NEXT_PUBLIC_SITE_URL=https://YOUR_DOMAIN`.
+1. Point **LogiForge.com** DNS to your host (A/AAAA or CNAME).
+2. Set `NEXT_PUBLIC_SITE_URL=https://logiforge.com`.
 3. Deploy the `web` container / Next.js app with production env vars.
-4. Enable HTTPS (already expected via ingress / platform TLS).
+4. Enable HTTPS for `logiforge.com` (and optionally `www.logiforge.com` → apex redirect).
 
 ## 2. Search Console & analytics
 
-1. Verify the domain in [Google Search Console](https://search.google.com/search-console).
-2. Submit `https://YOUR_DOMAIN/sitemap.xml`.
-3. Confirm `https://YOUR_DOMAIN/robots.txt` allows `/` and points at the sitemap.
+1. Verify **logiforge.com** in [Google Search Console](https://search.google.com/search-console).
+2. Submit `https://logiforge.com/sitemap.xml`.
+3. Confirm `https://logiforge.com/robots.txt` allows `/` and points at the sitemap.
 4. Add Google Analytics / Plausible if you want conversion tracking on `#request-demo`.
 
 ## 3. On-page SEO already shipped
@@ -46,7 +46,7 @@ Technical SEO alone is not enough. Do these after launch:
 
 ```bash
 NODE_ENV=production
-NEXT_PUBLIC_SITE_URL=https://YOUR_DOMAIN
+NEXT_PUBLIC_SITE_URL=https://logiforge.com
 NEXT_PUBLIC_REQUIRE_ACCESS_REQUEST=true
 NEXT_PUBLIC_ALLOW_DEMO_LOGIN=false
 DEMO_REQUEST_TO=tirthsoni1810@gmail.com

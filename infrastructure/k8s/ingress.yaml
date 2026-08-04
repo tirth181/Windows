@@ -18,10 +18,10 @@ metadata:
       more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
 spec:
   tls:
-    - hosts: [app.logiforge.example, api.logiforge.example]
+    - hosts: [logiforge.com, www.logiforge.com, api.logiforge.com]
       secretName: logiforge-tls
   rules:
-    - host: app.logiforge.example
+    - host: logiforge.com
       http:
         paths:
           - path: /
@@ -31,7 +31,17 @@ spec:
                 name: logiforge-web
                 port:
                   number: 80
-    - host: api.logiforge.example
+    - host: www.logiforge.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: logiforge-web
+                port:
+                  number: 80
+    - host: api.logiforge.com
       http:
         paths:
           - path: /
