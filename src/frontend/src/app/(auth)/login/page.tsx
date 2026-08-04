@@ -6,6 +6,10 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { Button, Input } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
+import {
+  hasCompletedAccessRequest,
+  isAccessRequestRequired,
+} from "@/lib/demo-access";
 import { isDemoLoginAllowed } from "@/lib/demo-mode";
 import { useAuthStore } from "@/stores/auth-store";
 import type { AuthUser } from "@/types";
@@ -16,6 +20,7 @@ const loginSchema = z.object({
 });
 
 const demoAllowed = isDemoLoginAllowed();
+const accessRequired = isAccessRequestRequired();
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,10 +28,23 @@ export default function LoginPage() {
   const login = useAuthStore((s) => s.login);
   const token = useAuthStore((s) => s.token);
   const hydrated = useAuthStore((s) => s.hydrated);
-  const [email, setEmail] = useState(demoAllowed ? "admin@logiforge.demo" : "");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [accessReady, setAccessReady] = useState(!accessRequired);
+
+  useEffect(() => {
+    if (!accessRequired) {
+      setAccessReady(true);
+      return;
+    }
+    if (!hasCompletedAccessRequest()) {
+      router.replace("/?request=demo");
+      return;
+    }
+    setAccessReady(true);
+  }, [router]);
 
   useEffect(() => {
     if (hydrated && token) {
@@ -56,8 +74,7 @@ export default function LoginPage() {
       login(result.user, result.accessToken, result.refreshToken);
       router.replace("/dashboard");
     } catch (err) {
-      if (demoAllowed) {
-        // Explicitly enabled demo mode — local sign-in when API is unavailable
+      if (demoAllowed && hasCompletedAccessRequest()) {
         loginDemo(parsed.data.email, "Alex Rivera");
         router.replace("/dashboard");
       } else {
@@ -74,13 +91,21 @@ export default function LoginPage() {
 
   function signInMicrosoft() {
     setError(null);
-    if (demoAllowed) {
+    if (demoAllowed && hasCompletedAccessRequest()) {
       loginDemo("entra.user@logiforge.demo", "Entra Operator");
       router.replace("/dashboard");
       return;
     }
     setError(
-      "Microsoft Entra ID is not configured for this environment. Contact your administrator.",
+      "Microsoft Entra ID is not configured for this environment. Request a demo first, or contact your administrator.",
+    );
+  }
+
+  if (!accessReady) {
+    return (
+      <div className="lf-atmosphere flex min-h-screen items-center justify-center text-[var(--muted)]">
+        <p className="relative z-10 text-sm">Checking access…</p>
+      </div>
     );
   }
 
@@ -151,17 +176,10 @@ export default function LoginPage() {
             Sign in with Microsoft
           </Button>
 
-          {demoAllowed ? (
-            <p className="text-center text-xs text-[var(--muted)]">
-              Demo mode is enabled — any password signs you in when the API is
-              unavailable.
-            </p>
-          ) : (
-            <p className="text-center text-xs text-[var(--muted)]">
-              Production sign-in requires a valid account. Demo bypass is
-              disabled.
-            </p>
-          )}
+          <p className="text-center text-xs text-[var(--muted)]">
+            Access is unlocked for this browser session after your demo request
+            is submitted.
+          </p>
         </form>
 
         <p className="mt-6 text-center text-sm text-[var(--muted)]">

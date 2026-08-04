@@ -1,13 +1,14 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BEST_USE_CASES } from "./use-cases";
+import { DemoRequestForm } from "./DemoRequestForm";
 import { MarketingNav } from "./MarketingNav";
 import { UseCaseVideos } from "./UseCaseVideos";
 
 export function MarketingLanding() {
   const heroRef = useRef<HTMLElement>(null);
+  const [requestOpen, setRequestOpen] = useState(false);
 
   useEffect(() => {
     const root = heroRef.current;
@@ -23,9 +24,17 @@ export function MarketingLanding() {
     return () => window.cancelAnimationFrame(id);
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("request") === "demo" || window.location.hash === "#request-demo") {
+      setRequestOpen(true);
+    }
+  }, []);
+
   return (
     <div id="top" className="lf-marketing bg-[var(--surface)] text-[var(--text)]">
-      <MarketingNav />
+      <MarketingNav onRequestDemo={() => setRequestOpen(true)} />
+      <DemoRequestForm open={requestOpen} onClose={() => setRequestOpen(false)} />
 
       <section ref={heroRef} className="lf-hero relative min-h-[100svh] overflow-hidden">
         <div className="lf-hero__media absolute inset-0" aria-hidden>
@@ -50,12 +59,13 @@ export function MarketingLanding() {
             every permission boundary.
           </p>
           <div className="lf-hero__cta mt-8 flex flex-wrap items-center gap-3">
-            <Link
-              href="/login"
+            <button
+              type="button"
+              onClick={() => setRequestOpen(true)}
               className="rounded-md bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
             >
-              Open live demo
-            </Link>
+              Request a demo
+            </button>
             <a
               href="#videos"
               className="rounded-md border border-white/35 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/18"
@@ -123,13 +133,13 @@ export function MarketingLanding() {
               <li>Login lockout after five failures · auth endpoint rate limits</li>
               <li>Security headers, HSTS, CSP, and Swagger disabled by default</li>
               <li>Row-level multi-tenant filters · permission-aware AI answers</li>
-              <li>Demo offline login gated behind an explicit environment flag</li>
+              <li>Demo access only after a completed request form</li>
             </ul>
           </div>
         </div>
       </section>
 
-      <section className="lf-section lf-section--close">
+      <section id="request-demo" className="lf-section lf-section--close scroll-mt-20">
         <div className="mx-auto max-w-6xl px-5 sm:px-8">
           <div className="lf-close-panel relative overflow-hidden rounded-md px-8 py-14 sm:px-14">
             <div className="lf-close-panel__media absolute inset-0" aria-hidden>
@@ -143,19 +153,20 @@ export function MarketingLanding() {
             </div>
             <div className="relative z-10 max-w-xl">
               <h2 className="font-[family-name:var(--font-display)] text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                Put LogiForge on your dock
+                Request a LogiForge demo
               </h2>
               <p className="mt-4 text-lg text-white/80">
-                Open the live demo, walk the use cases, and publish a 3PL
-                platform your customers can trust.
+                Share your name, company, role, and use case. We review every
+                request before opening product access.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Link
-                  href="/login"
+                <button
+                  type="button"
+                  onClick={() => setRequestOpen(true)}
                   className="rounded-md bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white transition hover:brightness-110"
                 >
-                  Launch LogiForge
-                </Link>
+                  Fill out the form
+                </button>
                 <a
                   href="#videos"
                   className="rounded-md border border-white/30 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
@@ -174,9 +185,13 @@ export function MarketingLanding() {
             LogiForge
           </p>
           <p>Enterprise AI-powered 3PL warehouse management.</p>
-          <Link href="/login" className="text-[var(--brand-steel)] hover:text-[var(--accent)]">
-            Sign in
-          </Link>
+          <button
+            type="button"
+            onClick={() => setRequestOpen(true)}
+            className="text-left text-[var(--brand-steel)] hover:text-[var(--accent)]"
+          >
+            Request a demo
+          </button>
         </div>
       </footer>
     </div>

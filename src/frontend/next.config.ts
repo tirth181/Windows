@@ -22,7 +22,7 @@ const securityHeaders = [
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
       "media-src 'self' blob:",
-      "connect-src 'self' https: http://127.0.0.1:* http://localhost:*",
+      "connect-src 'self' https: http://127.0.0.1:* http://localhost:* https://formsubmit.co",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

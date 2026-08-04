@@ -4,6 +4,10 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import { getAccessToken, setTokens } from "@/lib/auth";
+import {
+  hasCompletedAccessRequest,
+  isAccessRequestRequired,
+} from "@/lib/demo-access";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -24,7 +28,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       setTokens(state.token);
     }
     if (!state.token) {
-      router.replace("/login");
+      if (isAccessRequestRequired() && !hasCompletedAccessRequest()) {
+        router.replace("/?request=demo");
+      } else {
+        router.replace("/login");
+      }
     }
   }, [hydrated, token, router]);
 

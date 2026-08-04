@@ -63,6 +63,23 @@ Demo tenant: **Harborline Logistics** · Warehouse **DFW1**
 
 > Offline demo login (any password) is only available when `NEXT_PUBLIC_ALLOW_DEMO_LOGIN=true`. Leave this **false** for production publishes.
 
+### Demo access requests
+
+The marketing site does **not** open the product upfront. Visitors must submit:
+
+- Full name · Company name · Position · Brief use case
+
+Submissions are emailed to `DEMO_REQUEST_TO` (default `tirthsoni1810@gmail.com`). Delivery order:
+
+1. Resend (`RESEND_API_KEY`)
+2. SMTP (`SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` — Gmail App Password works)
+3. Browser FormSubmit fallback to the same inbox
+4. Mailto fallback if networked providers are blocked
+
+After a successful submit, that browser session may continue to `/login`.
+
+**First FormSubmit delivery:** check `tirthsoni1810@gmail.com` (and spam) for a one-time activation email from FormSubmit and confirm it.
+
 ## Modules
 
 1. Dashboard · 2. Inbound · 3. Inventory · 4. Outbound · 5. Reports  

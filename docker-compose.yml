@@ -57,6 +57,8 @@ services:
     environment:
       API_ORIGIN: http://api:8080
       NEXT_PUBLIC_ALLOW_DEMO_LOGIN: "true"
+      NEXT_PUBLIC_REQUIRE_ACCESS_REQUEST: "true"
+      DEMO_REQUEST_TO: tirthsoni1810@gmail.com
     ports:
       - "3000:3000"
     depends_on:

@@ -20,6 +20,7 @@
 | OWASP Top 10 | Centralized exception handling, XSS-safe React, SQLi prevention via EF |
 | API docs | Swagger disabled unless Development or `Swagger:Enabled=true` |
 | Demo bypass | Frontend offline login only when `NEXT_PUBLIC_ALLOW_DEMO_LOGIN=true` |
+| Access request gate | Marketing form required before `/login` when `NEXT_PUBLIC_REQUIRE_ACCESS_REQUEST` is not `false`; submissions emailed to `DEMO_REQUEST_TO` |
 
 ## Password Policy (Local)
 

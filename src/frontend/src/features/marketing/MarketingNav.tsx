@@ -1,9 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
-export function MarketingNav() {
+type MarketingNavProps = {
+  onRequestDemo: () => void;
+};
+
+export function MarketingNav({ onRequestDemo }: MarketingNavProps) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -42,20 +45,13 @@ export function MarketingNav() {
             Security
           </a>
         </nav>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/login"
-            className="hidden text-sm text-white/90 transition hover:text-white sm:inline"
-          >
-            Sign in
-          </Link>
-          <Link
-            href="/login"
-            className="rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
-          >
-            Open demo
-          </Link>
-        </div>
+        <button
+          type="button"
+          onClick={onRequestDemo}
+          className="rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110"
+        >
+          Request a demo
+        </button>
       </div>
     </header>
   );
