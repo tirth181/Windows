@@ -232,7 +232,7 @@ public class PermissionAwareAiAssistantService : IAiAssistantService
                 .FirstOrDefaultAsync(ct);
             reply = item is null
                 ? $"No inventory found for batch matching '{batchToken}' in your company."
-                : $"Batch {item.BatchNumber} ({item.MaterialCode}) is at {item.Location?.Code ?? "unassigned"} in warehouse {item.Warehouse?.Name}. Status: {item.Status}. Remaining weight: {item.RemainingWeight}.";
+                : $"Batch {item.BatchNumber} ({item.MaterialCode}) is at {item.Location?.Code ?? "unassigned"} in warehouse {item.Warehouse?.Name}. Status: {item.Status}. Remaining weight: {item.RemainingWeight} lbs.";
             actions.Add("Open Inventory");
         }
         else if ((msg.Contains("today") && msg.Contains("shipment")) || msg.Contains("today's shipments"))
