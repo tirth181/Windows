@@ -560,7 +560,7 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
               onClick={handleReceive}
               className="min-w-[160px]"
             >
-              {done && status === "Received" ? (
+              {done ? (
                 <>
                   <CheckCircle2 className="h-5 w-5 animate-pulse" />
                   Received
