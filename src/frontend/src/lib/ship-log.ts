@@ -1,4 +1,4 @@
-import { formatShipTo } from "@/lib/ship-to";
+import { formatFileSize, formatShipTo } from "@/lib/ship-to";
 import { printHtmlDocument } from "@/lib/print-document";
 import {
   loadReceiptEmailOutbox,
@@ -6,7 +6,7 @@ import {
   type ReceiptEmailLog,
 } from "@/lib/receipt-email";
 import { formatWeight } from "@/lib/utils";
-import type { OutboundOrder, Warehouse } from "@/types";
+import type { DocumentAttachment, OutboundOrder, Warehouse } from "@/types";
 
 const SHIP_LOG_OUTBOX_KEY = "logiforge.demo.shipLogEmailOutbox";
 const RECEIPT_OUTBOX_KEY = "logiforge.demo.receiptEmailOutbox";
@@ -106,6 +106,44 @@ export function companyLabel(
   return fallback || "3PL company";
 }
 
+export type ShipLogAttachment = {
+  orderId: string;
+  orderNumber: string;
+  customerName?: string;
+  attachment: DocumentAttachment;
+};
+
+/** All outbound document attachments for shipments in the Ship Log. */
+export function collectShipLogAttachments(
+  orders: OutboundOrder[],
+): ShipLogAttachment[] {
+  return orders
+    .filter((o) => o.attachment?.name)
+    .map((o) => ({
+      orderId: o.id,
+      orderNumber: o.orderNumber,
+      customerName: o.customerName,
+      attachment: o.attachment!,
+    }));
+}
+
+function isImageAttachment(att: DocumentAttachment): boolean {
+  return (
+    att.type.startsWith("image/") ||
+    /\.(png|jpe?g|gif|webp)$/i.test(att.name)
+  );
+}
+
+function isPdfAttachment(att: DocumentAttachment): boolean {
+  return (
+    att.type === "application/pdf" || /\.pdf$/i.test(att.name)
+  );
+}
+
+export function attachmentLabel(order: OutboundOrder): string {
+  return order.attachment?.name || "—";
+}
+
 export function buildShipLogEmailContent(
   orders: OutboundOrder[],
   dayKey: string,
@@ -121,15 +159,30 @@ export function buildShipLogEmailContent(
       : orders
           .map((o, i) => {
             const shipTo = formatShipTo(o) || "—";
+            const att = o.attachment;
             return [
               `  ${i + 1}. ${o.orderNumber} — ${o.customerName || "—"}`,
               `     Shipped: ${formatWhen(o.shippedAt || o.shipDate)}`,
               `     Carrier: ${o.carrier || "—"} · Tracking: ${o.trackingNumber || "—"}`,
               `     Ship-to: ${shipTo}`,
               `     Weight: ${formatWeight(o.totalWeight || 0)} · Pallets: ${o.totalPallets ?? "—"}`,
+              att
+                ? `     Attachment: ${att.name} (${formatFileSize(att.size)}${att.type ? ` · ${att.type}` : ""})`
+                : "     Attachment: (none)",
             ].join("\n");
           })
           .join("\n\n");
+
+  const attachments = collectShipLogAttachments(orders);
+  const attachmentBlock =
+    attachments.length === 0
+      ? "  (none)"
+      : attachments
+          .map(
+            (a, i) =>
+              `  ${i + 1}. ${a.orderNumber} — ${a.attachment.name} (${formatFileSize(a.attachment.size)}${a.attachment.type ? ` · ${a.attachment.type}` : ""})`,
+          )
+          .join("\n");
 
   const subject = `Ship Log · ${dayLabel} · ${label}`;
   const body = [
@@ -142,7 +195,10 @@ export function buildShipLogEmailContent(
     "Shipments:",
     block,
     "",
-    `Totals: ${totals.shipments} shipment${totals.shipments === 1 ? "" : "s"} · ${formatWeight(totals.weight)} · ${totals.pallets} pallets · ${totals.lines} lines`,
+    "Attachments:",
+    attachmentBlock,
+    "",
+    `Totals: ${totals.shipments} shipment${totals.shipments === 1 ? "" : "s"} · ${formatWeight(totals.weight)} · ${totals.pallets} pallets · ${totals.lines} lines · ${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`,
     "",
     "— Sent from LogiForge",
   ].join("\n");
@@ -200,12 +256,18 @@ export function buildShipLogPrintHtml(
   const dayLabel = formatDayLabel(dayKey);
   const generated = new Date().toLocaleString();
 
+  const attachments = collectShipLogAttachments(orders);
+
   const bodyRows =
     orders.length === 0
-      ? `<tr><td colspan="8" class="muted" style="text-align:center;padding:14px">No shipments shipped on this day</td></tr>`
+      ? `<tr><td colspan="9" class="muted" style="text-align:center;padding:14px">No shipments shipped on this day</td></tr>`
       : orders
           .map((o) => {
             const shipTo = formatShipTo(o) || "—";
+            const att = o.attachment;
+            const attCell = att
+              ? `${escapeHtml(att.name)}<div class="muted">${escapeHtml(formatFileSize(att.size))}</div>`
+              : "—";
             return `
       <tr>
         <td class="mono">${escapeHtml(o.orderNumber)}</td>
@@ -216,7 +278,38 @@ export function buildShipLogPrintHtml(
         <td>${escapeHtml(shipTo)}</td>
         <td class="num">${escapeHtml(formatWeight(o.totalWeight || 0))}</td>
         <td class="num">${escapeHtml(String(o.totalPallets ?? "—"))}</td>
+        <td class="mono">${attCell}</td>
       </tr>`;
+          })
+          .join("");
+
+  const attachmentSection =
+    attachments.length === 0
+      ? `<p class="muted">No document attachments on shipments for this day.</p>`
+      : attachments
+          .map((a) => {
+            const att = a.attachment;
+            const img =
+              att.dataUrl && isImageAttachment(att)
+                ? `<img src="${att.dataUrl}" alt="${escapeHtml(att.name)}" />`
+                : "";
+            const note =
+              att.dataUrl && !isImageAttachment(att)
+                ? `<p class="muted" style="margin-top:6px">File attached${isPdfAttachment(att) ? " (PDF)" : ""} — open the digital Ship Log to download the full document.</p>`
+                : !att.dataUrl
+                  ? `<p class="muted" style="margin-top:6px">Document reference on file (binary not embedded in print).</p>`
+                  : "";
+            return `
+      <div class="attach">
+        <strong>${escapeHtml(a.orderNumber)}</strong>
+        <span class="muted"> · ${escapeHtml(a.customerName || "—")}</span>
+        <div style="margin-top:4px"><strong>${escapeHtml(att.name)}</strong></div>
+        <div class="muted">${escapeHtml(formatFileSize(att.size))}${
+          att.type ? ` · ${escapeHtml(att.type)}` : ""
+        }</div>
+        ${img}
+        ${note}
+      </div>`;
           })
           .join("");
 
@@ -261,6 +354,18 @@ export function buildShipLogPrintHtml(
       border-top: 1px solid #dbe3ec; font-size: 11px;
     }
     .muted { color: #64748b; }
+    h2 {
+      margin: 16px 0 8px; font-size: 11px; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #64748b;
+    }
+    .attach {
+      border: 1px solid #dbe3ec; border-radius: 4px; padding: 8px 10px;
+      margin-bottom: 8px; background: #f8fafc; page-break-inside: avoid;
+    }
+    .attach img {
+      display: block; max-width: 100%; max-height: 280px; margin-top: 8px;
+      object-fit: contain; background: #fff; border: 1px solid #e2e8f0;
+    }
   </style>
 </head>
 <body>
@@ -279,14 +384,15 @@ export function buildShipLogPrintHtml(
   <table>
     <thead>
       <tr>
-        <th style="width:12%">Order</th>
-        <th style="width:14%">Customer</th>
-        <th style="width:12%">Shipped</th>
-        <th style="width:11%">Carrier</th>
-        <th style="width:12%">Tracking</th>
-        <th style="width:23%">Ship-to</th>
-        <th class="num" style="width:9%">Weight</th>
-        <th class="num" style="width:7%">Pallets</th>
+        <th style="width:10%">Order</th>
+        <th style="width:12%">Customer</th>
+        <th style="width:11%">Shipped</th>
+        <th style="width:10%">Carrier</th>
+        <th style="width:11%">Tracking</th>
+        <th style="width:18%">Ship-to</th>
+        <th class="num" style="width:8%">Weight</th>
+        <th class="num" style="width:6%">Pallets</th>
+        <th style="width:14%">Attachment</th>
       </tr>
     </thead>
     <tbody>${bodyRows}</tbody>
@@ -297,7 +403,11 @@ export function buildShipLogPrintHtml(
     <span>Weight <strong>${escapeHtml(formatWeight(totals.weight))}</strong></span>
     <span>Pallets <strong>${totals.pallets}</strong></span>
     <span>Lines <strong>${totals.lines}</strong></span>
+    <span>Attachments <strong>${attachments.length}</strong></span>
   </div>
+
+  <h2>Document attachments</h2>
+  ${attachmentSection}
 </body>
 </html>`;
 }

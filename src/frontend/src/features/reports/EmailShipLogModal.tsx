@@ -127,7 +127,8 @@ export function EmailShipLogModal({
 
         <p className="text-sm text-[var(--muted)]">
           Includes {orders.length} shipment
-          {orders.length === 1 ? "" : "s"} shipped on {dayKey}.
+          {orders.length === 1 ? "" : "s"} shipped on {dayKey}, with outbound
+          attachment names listed in the email body.
         </p>
 
         <div>

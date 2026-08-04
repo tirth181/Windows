@@ -1,15 +1,16 @@
 "use client";
 
-import { FileText, Mail, Printer } from "lucide-react";
+import { FileText, Mail, Paperclip, Printer } from "lucide-react";
 import { Button, Input, Modal, StatusBadge } from "@/components/ui";
 import {
+  collectShipLogAttachments,
   companyLabel,
   printShipLog,
   shipLogTotals,
 } from "@/lib/ship-log";
-import { formatShipTo } from "@/lib/ship-to";
+import { formatFileSize, formatShipTo } from "@/lib/ship-to";
 import { formatWeight } from "@/lib/utils";
-import type { OutboundOrder, Warehouse } from "@/types";
+import type { DocumentAttachment, OutboundOrder, Warehouse } from "@/types";
 
 function formatWhen(value?: string): string {
   if (!value) return "—";
@@ -22,6 +23,17 @@ function formatWhen(value?: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function isImage(att: DocumentAttachment): boolean {
+  return (
+    att.type.startsWith("image/") ||
+    /\.(png|jpe?g|gif|webp)$/i.test(att.name)
+  );
+}
+
+function isPdf(att: DocumentAttachment): boolean {
+  return att.type === "application/pdf" || /\.pdf$/i.test(att.name);
 }
 
 export function ShipLogPreview({
@@ -43,6 +55,7 @@ export function ShipLogPreview({
 }) {
   const label = companyLabel(company);
   const totals = shipLogTotals(orders);
+  const attachments = collectShipLogAttachments(orders);
 
   return (
     <Modal
@@ -99,7 +112,8 @@ export function ShipLogPreview({
         </div>
 
         <p className="text-sm text-[var(--muted)]">
-          {label} · all shipments confirmed shipped on this day
+          {label} · all shipments confirmed shipped on this day, including
+          outbound document attachments
         </p>
 
         <div className="overflow-x-auto rounded-md border border-[var(--brand-steel)]/15">
@@ -114,6 +128,7 @@ export function ShipLogPreview({
                 <th className="px-2 py-2 font-semibold">Ship-to</th>
                 <th className="px-2 py-2 text-right font-semibold">Weight</th>
                 <th className="px-2 py-2 text-right font-semibold">Pallets</th>
+                <th className="px-2 py-2 font-semibold">Attachment</th>
                 <th className="px-2 py-2 font-semibold">Status</th>
               </tr>
             </thead>
@@ -121,7 +136,7 @@ export function ShipLogPreview({
               {orders.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-3 py-8 text-center text-[var(--muted)]"
                   >
                     No shipments shipped on this day.
@@ -159,6 +174,9 @@ export function ShipLogPreview({
                     <td className="px-2 py-2 text-right tabular-nums">
                       {row.totalPallets ?? "—"}
                     </td>
+                    <td className="break-words px-2 py-2 font-[family-name:var(--font-mono)]">
+                      {row.attachment?.name || "—"}
+                    </td>
                     <td className="px-2 py-2">
                       <StatusBadge status={row.status} />
                     </td>
@@ -168,6 +186,80 @@ export function ShipLogPreview({
             </tbody>
           </table>
         </div>
+
+        <section>
+          <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">
+            Document attachments
+          </h2>
+          {attachments.length === 0 ? (
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              No document attachments on shipments for this day.
+            </p>
+          ) : (
+            <ul className="mt-2 space-y-3">
+              {attachments.map((item) => {
+                const att = item.attachment;
+                return (
+                  <li
+                    key={`${item.orderId}-${att.name}`}
+                    className="rounded-md border border-[var(--brand-steel)]/15 bg-[var(--surface)]/60 p-3"
+                  >
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <Paperclip
+                        className="h-4 w-4 shrink-0 text-[var(--accent)]"
+                        aria-hidden
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-[var(--brand-ink)]">
+                          <span className="font-[family-name:var(--font-mono)]">
+                            {item.orderNumber}
+                          </span>
+                          {item.customerName ? (
+                            <span className="text-[var(--muted)]">
+                              {" "}
+                              · {item.customerName}
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="truncate text-sm font-medium">
+                          {att.name}
+                        </p>
+                        <p className="text-xs text-[var(--muted)]">
+                          {formatFileSize(att.size)}
+                          {att.type ? ` · ${att.type}` : ""}
+                        </p>
+                      </div>
+                      {att.dataUrl ? (
+                        <a
+                          href={att.dataUrl}
+                          download={att.name}
+                          className="text-sm font-medium text-[var(--accent)] hover:underline"
+                        >
+                          Download
+                        </a>
+                      ) : null}
+                    </div>
+                    {att.dataUrl && isImage(att) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={att.dataUrl}
+                        alt={att.name}
+                        className="max-h-[320px] w-full rounded border border-[var(--brand-steel)]/10 bg-white object-contain"
+                      />
+                    ) : null}
+                    {att.dataUrl && isPdf(att) ? (
+                      <iframe
+                        title={att.name}
+                        src={att.dataUrl}
+                        className="h-[320px] w-full rounded border border-[var(--brand-steel)]/10 bg-white"
+                      />
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
         <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-[var(--brand-ink)]">
           <span>
@@ -185,6 +277,10 @@ export function ShipLogPreview({
           </span>
           <span>
             Lines <strong className="tabular-nums">{totals.lines}</strong>
+          </span>
+          <span>
+            Attachments{" "}
+            <strong className="tabular-nums">{attachments.length}</strong>
           </span>
         </div>
       </div>
