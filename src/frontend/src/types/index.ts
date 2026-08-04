@@ -148,6 +148,7 @@ export interface OutboundOrder {
   customerName?: string;
   shipDate: string;
   carrier?: string;
+  trackingNumber?: string;
   address?: string;
   state?: string;
   postalCode?: string;

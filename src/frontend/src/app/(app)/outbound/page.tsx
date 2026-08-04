@@ -96,6 +96,11 @@ export default function OutboundPage() {
                   {row.carrier ? (
                     <p className="text-xs text-[var(--muted)]">{row.carrier}</p>
                   ) : null}
+                  {row.trackingNumber ? (
+                    <p className="font-[family-name:var(--font-mono)] text-xs text-[var(--muted)]">
+                      Track: {row.trackingNumber}
+                    </p>
+                  ) : null}
                 </td>
                 <td className="px-4 py-3">{row.customerName}</td>
                 <td className="px-4 py-3">{row.warehouseName}</td>

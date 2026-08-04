@@ -22,6 +22,7 @@ import {
 import { companiesForUser } from "@/lib/companies-scope";
 import { companyInventoryRows } from "@/lib/inventory-snapshot";
 import { formatFileSize, formatShipTo } from "@/lib/ship-to";
+import { applyShippedOutboundToInventory } from "@/lib/ship-to-inventory";
 import { formatWeight } from "@/lib/utils";
 import type {
   Customer,
@@ -132,6 +133,7 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
   const [knownCustomers, setKnownCustomers] = useState<Customer[]>(DEMO_CUSTOMERS);
   const [shipDate, setShipDate] = useState("");
   const [carrier, setCarrier] = useState("");
+  const [trackingNumber, setTrackingNumber] = useState("");
   const [address, setAddress] = useState("");
   const [state, setState] = useState("");
   const [postalCode, setPostalCode] = useState("");
@@ -213,6 +215,7 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
         );
         setShipDate(new Date(order.shipDate).toISOString().slice(0, 16));
         setCarrier(order.carrier || "");
+        setTrackingNumber(order.trackingNumber || "");
         setAddress(order.address || order.destination || "");
         setState(order.state || "");
         setPostalCode(order.postalCode || "");
@@ -345,6 +348,7 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
       shipDate: new Date(shipDate).toISOString(),
       shipmentDate: new Date(shipDate).toISOString(),
       carrier: carrier || undefined,
+      trackingNumber: trackingNumber.trim() || undefined,
       address: address.trim(),
       state: state.trim(),
       postalCode: postalCode.trim(),
@@ -424,19 +428,29 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
     setMessage(null);
     try {
       const saved = await persist(status === "Picking" ? "Picking" : "Draft");
+      const shipped: OutboundOrder = {
+        ...saved,
+        trackingNumber: trackingNumber.trim() || saved.trackingNumber,
+        status: "Shipped",
+        shippedAt: new Date().toISOString(),
+      };
       try {
         await apiFetch(`/outbound/${saved.id}/ship`, { method: "POST" });
       } catch {
-        upsertDemoItem("outbound", DEMO_OUTBOUND, {
-          ...saved,
-          status: "Shipped",
-          shippedAt: new Date().toISOString(),
-        });
+        // Demo / offline path — API ship unavailable
       }
+      // Always persist shipped status + decrement inventory locally
+      // (API also decrements when online; local store keeps demo inventory in sync)
+      upsertDemoItem("outbound", DEMO_OUTBOUND, shipped);
+      const { updated } = applyShippedOutboundToInventory(shipped);
       setStatus("Shipped");
       setDone(true);
       setConfirmOpen(false);
-      setMessage("Shipment confirmed.");
+      setMessage(
+        updated
+          ? `Shipment confirmed — inventory updated on ${updated} line${updated === 1 ? "" : "s"}.`
+          : "Shipment confirmed.",
+      );
       setTimeout(() => router.push("/outbound"), 900);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Ship failed.");
@@ -508,6 +522,15 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
           onChange={(e) => setCarrier(e.target.value)}
           placeholder="Carrier"
           disabled={readOnly}
+        />
+        <Input
+          label="Tracking number"
+          value={trackingNumber}
+          onChange={(e) => setTrackingNumber(e.target.value)}
+          placeholder="Optional carrier tracking #"
+          disabled={readOnly}
+          className="font-[family-name:var(--font-mono)]"
+          hint="Saved with the shipment and shown on the outbound list."
         />
         <Input
           label="Address"
@@ -801,8 +824,22 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
             </h3>
             <p className="mt-2 text-sm text-[var(--muted)]">
               This will allocate {totals.materials} materials totaling{" "}
-              {formatWeight(totals.weight)} across {totals.pallets} pallets.
+              {formatWeight(totals.weight)} across {totals.pallets} pallets and
+              update inventory.
             </p>
+            {trackingNumber.trim() ? (
+              <p className="mt-2 text-sm text-[var(--brand-ink)]">
+                Tracking{" "}
+                <span className="font-[family-name:var(--font-mono)] font-medium">
+                  {trackingNumber.trim()}
+                </span>
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                No tracking number entered — you can add one on the form before
+                confirming.
+              </p>
+            )}
             <div className="mt-5 flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={submitting}>
                 Cancel
