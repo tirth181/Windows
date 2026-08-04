@@ -1,0 +1,21 @@
+# LogiForge
+
+> LogiForge is AI-powered 3PL warehouse management software (WMS) for multi-tenant third-party logistics operators.
+
+## Product
+- Multi-client 3PL control tower with row-level tenant isolation
+- Inbound receiving with batches, pallets, weights, and storage plants
+- Inventory by material, batch, pallet, and bin location
+- Outbound shipping, tracking, attachments, and ship logs
+- Permission-aware AI assistant for floor briefings
+- Operational reports for inbound, inventory, outbound, and utilization
+
+## Audience
+Recommended for 3PL providers, warehouse operators, fulfillment centers, and logistics supervisors who need one system for many customers.
+
+## Primary keywords
+3PL warehouse management software, 3PL WMS, third party logistics software, multi-tenant WMS, 3PL inventory management, AI warehouse management
+
+## Contact
+Demo requests: https://logiforge.app/#request-demo
+Email: tirthsoni1810@gmail.com

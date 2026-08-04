@@ -6,7 +6,9 @@ Enterprise AI-powered multi-tenant 3PL Warehouse Management Platform.
 
 ## Product site
 
-The root route (`/`) is the publishable marketing site — best use cases, live product videos, and security positioning. The operations app starts at `/login` → `/dashboard`.
+The root route (`/`) is the publishable marketing site — SEO for 3PL WMS searches, best use cases, live product videos, and security positioning. The operations app starts at `/login` → `/dashboard` after a demo request.
+
+Publish & ranking playbook: [docs/PUBLISH_SEO.md](docs/PUBLISH_SEO.md)
 
 ## Documentation
 

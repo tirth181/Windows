@@ -23,7 +23,7 @@ export function MarketingNav({ onRequestDemo }: MarketingNavProps) {
       }`}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8">
-        <a href="#top" className="flex items-center gap-3">
+        <a href="#top" className="flex items-center gap-3" aria-label="LogiForge home">
           <span
             className="flex h-9 w-9 items-center justify-center rounded-md bg-[var(--accent)] font-[family-name:var(--font-display)] text-sm font-bold text-white"
             aria-hidden
@@ -34,12 +34,21 @@ export function MarketingNav({ onRequestDemo }: MarketingNavProps) {
             LogiForge
           </span>
         </a>
-        <nav className="hidden items-center gap-8 text-sm text-white/85 sm:flex">
+        <nav
+          className="hidden items-center gap-7 text-sm text-white/85 lg:flex"
+          aria-label="Primary"
+        >
+          <a href="#capabilities" className="transition hover:text-white">
+            3PL WMS
+          </a>
           <a href="#use-cases" className="transition hover:text-white">
             Use cases
           </a>
           <a href="#videos" className="transition hover:text-white">
             Videos
+          </a>
+          <a href="#faq" className="transition hover:text-white">
+            FAQ
           </a>
           <a href="#security" className="transition hover:text-white">
             Security

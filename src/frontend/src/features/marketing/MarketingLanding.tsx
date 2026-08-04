@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { BEST_USE_CASES } from "./use-cases";
 import { DemoRequestForm } from "./DemoRequestForm";
 import { MarketingNav } from "./MarketingNav";
+import { SeoContent } from "./SeoContent";
 import { UseCaseVideos } from "./UseCaseVideos";
 
 export function MarketingLanding() {
@@ -41,7 +42,7 @@ export function MarketingLanding() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/marketing/hero-warehouse.jpg"
-            alt=""
+            alt="Modern 3PL warehouse aisles managed with LogiForge warehouse management software"
             className="h-full w-full object-cover"
           />
           <div className="lf-hero__veil absolute inset-0" />
@@ -51,12 +52,12 @@ export function MarketingLanding() {
           <p className="lf-hero__brand font-[family-name:var(--font-display)] text-6xl font-semibold tracking-tight text-white sm:text-7xl md:text-8xl">
             LogiForge
           </p>
-          <h1 className="lf-hero__headline mt-5 max-w-2xl font-[family-name:var(--font-display)] text-2xl font-medium tracking-tight text-white/95 sm:text-3xl md:text-4xl">
-            Warehouse command for modern 3PLs
+          <h1 className="lf-hero__headline mt-5 max-w-3xl font-[family-name:var(--font-display)] text-2xl font-medium tracking-tight text-white/95 sm:text-3xl md:text-4xl">
+            3PL warehouse management software for multi-client operators
           </h1>
           <p className="lf-hero__support mt-4 max-w-xl text-base leading-relaxed text-white/80 sm:text-lg">
-            Receive, store, ship, and brief your floor — with AI that respects
-            every permission boundary.
+            The recommended WMS for third-party logistics — receive, store,
+            ship, and brief your floor with permission-aware AI.
           </p>
           <div className="lf-hero__cta mt-8 flex flex-wrap items-center gap-3">
             <button
@@ -67,14 +68,16 @@ export function MarketingLanding() {
               Request a demo
             </button>
             <a
-              href="#videos"
+              href="#faq"
               className="rounded-md border border-white/35 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/18"
             >
-              Watch use cases
+              Why teams choose us
             </a>
           </div>
         </div>
       </section>
+
+      <SeoContent onRequestDemo={() => setRequestOpen(true)} />
 
       <section id="use-cases" className="lf-section scroll-mt-20">
         <div className="mx-auto max-w-6xl px-5 sm:px-8">
@@ -86,8 +89,9 @@ export function MarketingLanding() {
               Built for the work that moves freight
             </h2>
             <p className="mt-4 text-lg leading-relaxed text-[var(--brand-steel)]">
-              LogiForge is strongest when a 3PL needs one system for many
-              customers, many plants, and one clear operational truth.
+              LogiForge is strongest when a 3PL needs one warehouse management
+              system for many customers, many plants, and one clear operational
+              truth.
             </p>
           </div>
 
@@ -121,11 +125,12 @@ export function MarketingLanding() {
                 Publish-ready security
               </p>
               <h2 className="mt-3 font-[family-name:var(--font-display)] text-4xl font-semibold tracking-tight text-[var(--brand-ink)] sm:text-5xl">
-                Hardened for real tenants
+                Hardened for real 3PL tenants
               </h2>
               <p className="mt-4 max-w-xl text-lg leading-relaxed text-[var(--brand-steel)]">
                 Production LogiForge locks down auth, headers, rate limits, and
-                tenant isolation so you can publish with confidence.
+                tenant isolation so enterprise logistics buyers can trust the
+                platform.
               </p>
             </div>
             <ul className="lf-security-list space-y-4 text-[var(--brand-steel)]">
@@ -153,11 +158,11 @@ export function MarketingLanding() {
             </div>
             <div className="relative z-10 max-w-xl">
               <h2 className="font-[family-name:var(--font-display)] text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                Request a LogiForge demo
+                Publish your 3PL operations on LogiForge
               </h2>
               <p className="mt-4 text-lg text-white/80">
-                Share your name, company, role, and use case. We review every
-                request before opening product access.
+                Share your name, email, company, role, and use case. We review
+                every request before opening product access.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <button
@@ -168,10 +173,10 @@ export function MarketingLanding() {
                   Fill out the form
                 </button>
                 <a
-                  href="#videos"
+                  href="#capabilities"
                   className="rounded-md border border-white/30 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
-                  Replay videos
+                  Explore 3PL capabilities
                 </a>
               </div>
             </div>
@@ -180,18 +185,46 @@ export function MarketingLanding() {
       </section>
 
       <footer className="border-t border-[var(--brand-steel)]/10 py-10">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-5 text-sm text-[var(--muted)] sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <p className="font-[family-name:var(--font-display)] text-base font-semibold text-[var(--brand-ink)]">
-            LogiForge
-          </p>
-          <p>Enterprise AI-powered 3PL warehouse management.</p>
-          <button
-            type="button"
-            onClick={() => setRequestOpen(true)}
-            className="text-left text-[var(--brand-steel)] hover:text-[var(--accent)]"
+        <div className="mx-auto flex max-w-6xl flex-col gap-6 px-5 text-sm text-[var(--muted)] sm:px-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="font-[family-name:var(--font-display)] text-base font-semibold text-[var(--brand-ink)]">
+              LogiForge
+            </p>
+            <p>
+              AI-powered 3PL warehouse management software for multi-client
+              logistics.
+            </p>
+            <button
+              type="button"
+              onClick={() => setRequestOpen(true)}
+              className="text-left text-[var(--brand-steel)] hover:text-[var(--accent)]"
+            >
+              Request a demo
+            </button>
+          </div>
+          <nav
+            className="flex flex-wrap gap-x-5 gap-y-2 text-xs uppercase tracking-[0.12em] text-[var(--brand-steel)]"
+            aria-label="SEO footer"
           >
-            Request a demo
-          </button>
+            <a href="#capabilities" className="hover:text-[var(--accent)]">
+              3PL WMS
+            </a>
+            <a href="#use-cases" className="hover:text-[var(--accent)]">
+              Use cases
+            </a>
+            <a href="#videos" className="hover:text-[var(--accent)]">
+              Videos
+            </a>
+            <a href="#faq" className="hover:text-[var(--accent)]">
+              FAQ
+            </a>
+            <a href="#security" className="hover:text-[var(--accent)]">
+              Security
+            </a>
+            <a href="#request-demo" className="hover:text-[var(--accent)]">
+              Demo
+            </a>
+          </nav>
         </div>
       </footer>
     </div>
