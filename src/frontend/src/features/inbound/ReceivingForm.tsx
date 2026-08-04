@@ -154,7 +154,7 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
         minWidth: 120,
         cellClass: "font-mono text-xs",
       },
-      { field: "locationCode", headerName: "Location", editable: !readOnly, flex: 0.9, minWidth: 110 },
+      { field: "locationCode", headerName: "Slot", editable: !readOnly, flex: 0.9, minWidth: 110 },
       {
         field: "weight",
         headerName: "Weight (lbs)",
@@ -337,7 +337,7 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Select
-          label="Warehouse"
+          label="3PL company"
           value={warehouseId}
           onChange={(e) => setWarehouseId(e.target.value)}
           disabled={readOnly}

@@ -66,7 +66,7 @@ export function AppSidebar({ collapsed = false }: { collapsed?: boolean }) {
               LogiForge
             </p>
             <p className="text-[11px] uppercase tracking-[0.14em] text-white/55">
-              WMS
+              3PL
             </p>
           </div>
         ) : null}

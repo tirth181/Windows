@@ -77,12 +77,21 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         token: state.token,
-        warehouses: state.warehouses,
         selectedWarehouseId: state.selectedWarehouseId,
       }),
       onRehydrateStorage: () => (state) => {
         if (state?.token) {
           setTokens(state.token);
+        }
+        // Always use current demo/company options so renamed labels apply after updates
+        if (state) {
+          state.warehouses = DEMO_WAREHOUSES;
+          if (
+            !state.selectedWarehouseId ||
+            !DEMO_WAREHOUSES.some((w) => w.id === state.selectedWarehouseId)
+          ) {
+            state.selectedWarehouseId = DEMO_WAREHOUSES[0]?.id ?? null;
+          }
         }
         state?.setHydrated(true);
       },

@@ -177,7 +177,7 @@ public class TransferInventoryCommandHandler : IRequestHandler<TransferInventory
             ?? throw new NotFoundException(nameof(StorageLocation), request.Request.TargetLocationId);
 
         if (location.WarehouseId != item.WarehouseId)
-            throw new DomainException("invalid_transfer", "Target location must be in the same warehouse.");
+            throw new DomainException("invalid_transfer", "Target slot must be in the same 3PL company.");
 
         var before = item.LocationId;
         item.LocationId = location.Id;

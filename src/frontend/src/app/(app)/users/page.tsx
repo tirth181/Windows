@@ -155,7 +155,7 @@ export default function UsersPage() {
     <div className="space-y-4">
       <PageHeader
         title="Users"
-        description="Warehouse operators and administrators with role-based access."
+        description="3PL company operators and administrators with role-based access."
         actions={
           canCreate ? (
             <Button variant="outline" type="button" onClick={openInvite}>
@@ -228,7 +228,7 @@ export default function UsersPage() {
         description={
           editing
             ? "Update display name and active status."
-            : "Create a local user account for the warehouse."
+            : "Create a local user account for the 3PL company."
         }
         onClose={() => !saving && setModalOpen(false)}
         footer={

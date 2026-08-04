@@ -191,8 +191,8 @@ export function InventoryGrid() {
         cellClass: "font-mono text-xs",
       },
       { field: "customerName", headerName: "Customer", flex: 1.1, minWidth: 140 },
-      { field: "warehouseName", headerName: "Warehouse", flex: 1, minWidth: 120 },
-      { field: "locationCode", headerName: "Location", flex: 0.9, minWidth: 100 },
+      { field: "warehouseName", headerName: "3PL company", flex: 1, minWidth: 120 },
+      { field: "locationCode", headerName: "Slot", flex: 0.9, minWidth: 100 },
       {
         field: "remainingWeight",
         headerName: "Remaining lbs",
@@ -290,22 +290,22 @@ export function InventoryGrid() {
           ]}
         />
         <Select
-          label="Warehouse"
+          label="3PL company"
           value={warehouseId}
           onChange={(e) => setWarehouseId(e.target.value)}
           options={[
-            { value: "", label: "All warehouses" },
+            { value: "", label: "All 3PL companies" },
             ...DEMO_WAREHOUSES.map((w) => ({
               value: w.id,
-              label: w.code,
+              label: w.name,
             })),
           ]}
         />
         <Input
-          label="Location"
+          label="Slot"
           value={location}
           onChange={(e) => setLocation(e.target.value)}
-          placeholder="Location code"
+          placeholder="Slot code"
         />
         <Input
           label="Pallet"

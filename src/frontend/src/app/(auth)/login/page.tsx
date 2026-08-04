@@ -82,7 +82,7 @@ export default function LoginPage() {
             LogiForge
           </h1>
           <p className="mt-3 text-base text-[var(--brand-steel)]">
-            Enterprise 3PL warehouse operations
+            Enterprise 3PL company operations
           </p>
         </div>
 

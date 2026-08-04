@@ -53,7 +53,7 @@ export function DashboardView() {
     <div className="space-y-6">
       <PageHeader
         title={`${weekday} operations`}
-        description="Live warehouse pulse — inbound, on-hand, and outbound readiness."
+        description="Live 3PL company pulse — inbound, on-hand, and outbound readiness."
       />
       <DemoBanner show={demo} />
 

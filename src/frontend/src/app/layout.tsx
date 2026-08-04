@@ -22,10 +22,10 @@ const plexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "LogiForge WMS",
+    default: "LogiForge 3PL",
     template: "%s · LogiForge",
   },
-  description: "Enterprise 3PL warehouse management system",
+  description: "Enterprise 3PL company management system",
 };
 
 export default function RootLayout({

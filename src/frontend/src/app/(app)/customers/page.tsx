@@ -148,7 +148,7 @@ export default function CustomersPage() {
     <div className="space-y-4">
       <PageHeader
         title="Customers"
-        description="3PL customer accounts bound to warehouse inventory."
+        description="3PL customer accounts bound to 3PL company inventory."
         actions={
           canManage ? (
             <Button variant="outline" type="button" onClick={openCreate}>

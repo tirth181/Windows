@@ -64,7 +64,7 @@ export default function OutboundPage() {
             <tr>
               <th className="px-4 py-3 font-semibold">Order</th>
               <th className="px-4 py-3 font-semibold">Customer</th>
-              <th className="px-4 py-3 font-semibold">Warehouse</th>
+              <th className="px-4 py-3 font-semibold">3PL company</th>
               <th className="px-4 py-3 font-semibold">Ship date</th>
               <th className="px-4 py-3 font-semibold">Destination</th>
               <th className="px-4 py-3 font-semibold">Weight (lbs)</th>

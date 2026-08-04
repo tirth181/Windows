@@ -16,10 +16,11 @@ import type {
   Warehouse,
 } from "@/types";
 
+/** Top-bar / form selector options — labeled as 3PL companies in the UI. */
 export const DEMO_WAREHOUSES: Warehouse[] = [
-  { id: "wh-1", code: "DFW-01", name: "Dallas Hub", timezone: "America/Chicago" },
-  { id: "wh-2", code: "ATL-02", name: "Atlanta Crossdock", timezone: "America/New_York" },
-  { id: "wh-3", code: "LAX-03", name: "Los Angeles Bonded", timezone: "America/Los_Angeles" },
+  { id: "wh-1", code: "LOGIFORGE", name: "LogiForge Demo 3PL", timezone: "America/Chicago" },
+  { id: "wh-2", code: "HARBOR", name: "Harborline Logistics", timezone: "America/Chicago" },
+  { id: "wh-3", code: "SUMMIT", name: "Summit Freight Partners", timezone: "America/New_York" },
 ];
 
 export const DEMO_CUSTOMERS: Customer[] = [
@@ -43,7 +44,7 @@ export const DEMO_CUSTOMERS: Customer[] = [
     id: "cust-3",
     code: "PAC",
     name: "Pacific Components",
-    contactEmail: "warehouse@paccomp.example",
+    contactEmail: "ops@paccomp.example",
     isActive: false,
   },
 ];
@@ -96,7 +97,7 @@ export const DEMO_INBOUND: InboundLoad[] = [
     id: "inb-1",
     loadNumber: "INB-2026-0841",
     warehouseId: "wh-1",
-    warehouseName: "Dallas Hub",
+    warehouseName: "LogiForge Demo 3PL",
     customerId: "cust-1",
     customerName: "Acme Industrial",
     supplierName: "Midwest Steel Co",
@@ -157,7 +158,7 @@ export const DEMO_INBOUND: InboundLoad[] = [
     id: "inb-2",
     loadNumber: "INB-2026-0838",
     warehouseId: "wh-1",
-    warehouseName: "Dallas Hub",
+    warehouseName: "LogiForge Demo 3PL",
     customerId: "cust-2",
     customerName: "Nordic Polymers",
     supplierName: "Helsinki Resins",
@@ -172,7 +173,7 @@ export const DEMO_INBOUND: InboundLoad[] = [
     id: "inb-3",
     loadNumber: "INB-2026-0832",
     warehouseId: "wh-2",
-    warehouseName: "Atlanta Crossdock",
+    warehouseName: "Harborline Logistics",
     customerId: "cust-1",
     customerName: "Acme Industrial",
     arrivalDate: "2026-08-02T11:00:00Z",
@@ -186,7 +187,7 @@ export const DEMO_INVENTORY: InventoryItem[] = [
   {
     id: "inv-1",
     warehouseId: "wh-1",
-    warehouseName: "Dallas Hub",
+    warehouseName: "LogiForge Demo 3PL",
     customerId: "cust-1",
     customerName: "Acme Industrial",
     materialCode: "STL-PLATE-12",
@@ -204,7 +205,7 @@ export const DEMO_INVENTORY: InventoryItem[] = [
   {
     id: "inv-2",
     warehouseId: "wh-1",
-    warehouseName: "Dallas Hub",
+    warehouseName: "LogiForge Demo 3PL",
     customerId: "cust-2",
     customerName: "Nordic Polymers",
     materialCode: "RES-PELLET-A",
@@ -222,7 +223,7 @@ export const DEMO_INVENTORY: InventoryItem[] = [
   {
     id: "inv-3",
     warehouseId: "wh-1",
-    warehouseName: "Dallas Hub",
+    warehouseName: "LogiForge Demo 3PL",
     customerId: "cust-1",
     customerName: "Acme Industrial",
     materialCode: "BRG-HSG-90",
@@ -240,7 +241,7 @@ export const DEMO_INVENTORY: InventoryItem[] = [
   {
     id: "inv-4",
     warehouseId: "wh-2",
-    warehouseName: "Atlanta Crossdock",
+    warehouseName: "Harborline Logistics",
     customerId: "cust-2",
     customerName: "Nordic Polymers",
     materialCode: "FILM-ROLL-4",
@@ -258,7 +259,7 @@ export const DEMO_INVENTORY: InventoryItem[] = [
   {
     id: "inv-5",
     warehouseId: "wh-1",
-    warehouseName: "Dallas Hub",
+    warehouseName: "LogiForge Demo 3PL",
     customerId: "cust-1",
     customerName: "Acme Industrial",
     materialCode: "GKT-SIL-22",
@@ -280,7 +281,7 @@ export const DEMO_OUTBOUND: OutboundOrder[] = [
     id: "out-1",
     orderNumber: "OUT-2026-2201",
     warehouseId: "wh-1",
-    warehouseName: "Dallas Hub",
+    warehouseName: "LogiForge Demo 3PL",
     customerId: "cust-1",
     customerName: "Acme Industrial",
     shipDate: "2026-08-04T15:00:00Z",
@@ -330,7 +331,7 @@ export const DEMO_OUTBOUND: OutboundOrder[] = [
     id: "out-2",
     orderNumber: "OUT-2026-2194",
     warehouseId: "wh-1",
-    warehouseName: "Dallas Hub",
+    warehouseName: "LogiForge Demo 3PL",
     customerId: "cust-2",
     customerName: "Nordic Polymers",
     shipDate: "2026-08-03T18:30:00Z",
@@ -346,7 +347,7 @@ export const DEMO_OUTBOUND: OutboundOrder[] = [
     id: "out-3",
     orderNumber: "OUT-2026-2198",
     warehouseId: "wh-2",
-    warehouseName: "Atlanta Crossdock",
+    warehouseName: "Harborline Logistics",
     customerId: "cust-2",
     customerName: "Nordic Polymers",
     shipDate: "2026-08-04T12:00:00Z",
@@ -508,7 +509,7 @@ export const DEMO_AI_INSIGHTS: AiInsight[] = [
 
 export const DEMO_AI_SUGGESTIONS = [
   "Which SKUs are below reorder threshold?",
-  "Show delayed outbound for Dallas Hub",
+  "Show delayed outbound for LogiForge Demo 3PL",
   "Summarize inbound received today",
   "List pallets on hold with reason",
 ];
@@ -517,7 +518,7 @@ export const DEMO_AI_WELCOME: AiMessage = {
   id: "msg-welcome",
   role: "assistant",
   content:
-    "I'm the LogiForge operations assistant. Ask about inventory, inbound queues, outbound delays, or warehouse utilization. I can suggest next actions when you're authorized.",
+    "I'm the LogiForge operations assistant. Ask about inventory, inbound queues, outbound delays, or 3PL company utilization. I can suggest next actions when you're authorized.",
   createdAt: new Date().toISOString(),
   actions: [
     { label: "Open inbound", href: "/inbound" },
@@ -530,7 +531,7 @@ export const DEMO_REPORTS: ReportDefinition[] = [
     id: "rpt-1",
     name: "Daily Inventory Snapshot",
     category: "Inventory",
-    description: "On-hand by customer, material, and location.",
+    description: "On-hand by customer, material, and slot.",
     lastRunAt: "2026-08-04T06:00:00Z",
   },
   {
@@ -549,8 +550,8 @@ export const DEMO_REPORTS: ReportDefinition[] = [
   {
     id: "rpt-4",
     name: "Utilization by Zone",
-    category: "Locations",
-    description: "Slot occupancy and idle locations.",
+    category: "Slots",
+    description: "Slot occupancy and idle slots.",
     lastRunAt: "2026-08-02T06:00:00Z",
   },
 ];

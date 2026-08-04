@@ -69,7 +69,7 @@ public class CreateInboundCommandHandler : IRequestHandler<CreateInboundCommand,
             ?? throw new NotFoundException(nameof(Warehouse), request.Request.WarehouseId);
 
         if (!_tenant.CanAccessWarehouse(request.Request.WarehouseId))
-            throw new ForbiddenException("No access to this warehouse.");
+            throw new ForbiddenException("No access to this 3PL company.");
 
         var load = new InboundLoad
         {

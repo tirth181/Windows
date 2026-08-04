@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, LogOut, Menu, Warehouse } from "lucide-react";
+import { Building2, ChevronDown, LogOut, Menu } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-store";
 import { cn } from "@/lib/utils";
 
@@ -38,16 +38,16 @@ export function AppTopBar({ onToggleNav }: { onToggleNav?: () => void }) {
           <Menu className="h-5 w-5" />
         </button>
         <div className="flex min-w-0 items-center gap-2">
-          <Warehouse className="hidden h-4 w-4 text-[var(--muted)] sm:block" aria-hidden />
-          <label className="sr-only" htmlFor="warehouse-select">
-            Warehouse
+          <Building2 className="hidden h-4 w-4 text-[var(--muted)] sm:block" aria-hidden />
+          <label className="sr-only" htmlFor="company-select">
+            3PL company
           </label>
           <select
-            id="warehouse-select"
+            id="company-select"
             value={selectedWarehouseId ?? ""}
             onChange={(e) => setSelectedWarehouse(e.target.value)}
             className={cn(
-              "h-10 max-w-[220px] truncate rounded-md border border-[var(--brand-steel)]/15 bg-[var(--surface)] px-3 text-sm font-medium text-[var(--brand-ink)]",
+              "h-10 max-w-[260px] truncate rounded-md border border-[var(--brand-steel)]/15 bg-[var(--surface)] px-3 text-sm font-medium text-[var(--brand-ink)]",
               "focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/25",
             )}
           >

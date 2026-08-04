@@ -353,7 +353,7 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Select
-          label="Warehouse"
+          label="3PL company"
           value={warehouseId}
           onChange={(e) => setWarehouseId(e.target.value)}
           disabled={readOnly}
@@ -390,7 +390,7 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
           label="Destination"
           value={destination}
           onChange={(e) => setDestination(e.target.value)}
-          placeholder="Ship-to location"
+          placeholder="Ship-to address"
           disabled={readOnly}
           className="md:col-span-2 xl:col-span-2"
         />

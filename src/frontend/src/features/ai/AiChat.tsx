@@ -11,16 +11,16 @@ import { cn } from "@/lib/utils";
 function buildReply(prompt: string): AiMessage {
   const lower = prompt.toLowerCase();
   let content =
-    "Based on current warehouse activity, I recommend reviewing partial pallets in Zone A and confirming outbound OUT-2026-2201 before the 15:00 dock window.";
+    "Based on current 3PL company activity, I recommend reviewing partial pallets in Zone A and confirming outbound OUT-2026-2201 before the 15:00 dock window.";
   const actions: AiMessage["actions"] = [];
 
   if (lower.includes("inbound") || lower.includes("received")) {
     content =
-      "Today: 6 inbound loads staged. INB-2026-0841 (Acme) is still Draft at Dallas Hub — ready for receiving when dock 2 opens.";
+      "Today: 6 inbound loads staged. INB-2026-0841 (Acme) is still Draft at LogiForge Demo 3PL — ready for receiving when dock 2 opens.";
     actions.push({ label: "Open inbound", href: "/inbound" });
   } else if (lower.includes("delay") || lower.includes("outbound")) {
     content =
-      "2 delayed outbound orders need attention. OUT-2026-2198 is in Picking at Atlanta Crossdock with film roll inventory reserved.";
+      "2 delayed outbound orders need attention. OUT-2026-2198 is in Picking at Harborline Logistics with film roll inventory reserved.";
     actions.push({ label: "Open outbound", href: "/outbound" });
   } else if (lower.includes("hold") || lower.includes("partial") || lower.includes("sku")) {
     content =
@@ -28,7 +28,7 @@ function buildReply(prompt: string): AiMessage {
     actions.push({ label: "View inventory", href: "/inventory" });
   } else if (lower.includes("util")) {
     content =
-      "Dallas Hub utilization is 78%. Zone A is saturated; Zone B has open slots that can absorb putaway from INB-2026-0841.";
+      "LogiForge Demo 3PL utilization is 78%. Zone A is saturated; Zone B has open slots that can absorb putaway from INB-2026-0841.";
   }
 
   return {

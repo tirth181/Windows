@@ -148,7 +148,12 @@ public class ExcelExportService : IExcelExportService
             var props = list[0].GetType().GetProperties();
             for (var i = 0; i < props.Length; i++)
             {
-                ws.Cell(4, i + 1).Value = props[i].Name;
+                ws.Cell(4, i + 1).Value = props[i].Name switch
+                {
+                    "ThreePlCompany" or "Warehouse" => "3PL Company",
+                    "Location" => "Slot",
+                    _ => props[i].Name
+                };
                 ws.Cell(4, i + 1).Style.Font.Bold = true;
                 ws.Cell(4, i + 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#1E3A54");
                 ws.Cell(4, i + 1).Style.Font.FontColor = XLColor.White;
@@ -232,7 +237,7 @@ public class PermissionAwareAiAssistantService : IAiAssistantService
                 .FirstOrDefaultAsync(ct);
             reply = item is null
                 ? $"No inventory found for batch matching '{batchToken}' in your company."
-                : $"Batch {item.BatchNumber} ({item.MaterialCode}) is at {item.Location?.Code ?? "unassigned"} in warehouse {item.Warehouse?.Name}. Status: {item.Status}. Remaining weight: {item.RemainingWeight} lbs.";
+                : $"Batch {item.BatchNumber} ({item.MaterialCode}) is at {item.Location?.Code ?? "unassigned"} in 3PL company {item.Warehouse?.Name}. Status: {item.Status}. Remaining weight: {item.RemainingWeight} lbs.";
             actions.Add("Open Inventory");
         }
         else if ((msg.Contains("today") && msg.Contains("shipment")) || msg.Contains("today's shipments"))
@@ -287,7 +292,7 @@ public class PermissionAwareAiAssistantService : IAiAssistantService
         }
         else
         {
-            reply = "I can help with inventory locations, today's shipments, partial lots, receiving, and reports — within your permissions. Try: \"Where is Batch B240501?\" or \"Show today's shipments.\"";
+            reply = "I can help with inventory slots, today's shipments, partial lots, receiving, and reports — within your permissions. Try: \"Where is Batch B240501?\" or \"Show today's shipments.\"";
             actions.Add("Show today's shipments");
             actions.Add("Show partial inventory");
         }

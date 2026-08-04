@@ -14,7 +14,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Settings"
-        description="Company preferences for warehouse floor UX and notifications."
+        description="Preferences for 3PL company floor UX and notifications."
         actions={
           <Button
             onClick={async () => {

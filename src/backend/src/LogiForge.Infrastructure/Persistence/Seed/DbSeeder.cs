@@ -49,8 +49,8 @@ public static class DbSeeder
         var wh = new Warehouse
         {
             CompanyId = company.Id,
-            Code = "DFW1",
-            Name = "Dallas Fulfillment Center",
+            Code = "HARBOR",
+            Name = "Harborline Logistics",
             Timezone = "America/Chicago",
             IsActive = true
         };
@@ -58,7 +58,7 @@ public static class DbSeeder
 
         var perms = await db.Permissions.ToListAsync();
         var adminRole = new Role { CompanyId = company.Id, Name = "Company Administrator", IsSystem = true, Description = "Full company access" };
-        var floorRole = new Role { CompanyId = company.Id, Name = "Warehouse Associate", IsSystem = true, Description = "Floor receiving and shipping" };
+        var floorRole = new Role { CompanyId = company.Id, Name = "3PL Company Associate", IsSystem = true, Description = "Floor receiving and shipping" };
         db.Roles.AddRange(adminRole, floorRole);
 
         foreach (var p in perms.Where(p => p.Code != PermissionCodes.PlatformAdmin))

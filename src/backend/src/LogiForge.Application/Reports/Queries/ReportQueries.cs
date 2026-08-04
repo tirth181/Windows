@@ -31,9 +31,9 @@ public class GetReportCatalogQueryHandler : IRequestHandler<GetReportCatalogQuer
             new("partial_inventory", "Partial Inventory Report", "Lots with partial remaining weight"),
             new("batch_traceability", "Batch Traceability", "Inbound to outbound batch history"),
             new("customer_inventory", "Customer Inventory", "Inventory grouped by customer"),
-            new("warehouse_utilization", "Warehouse Utilization", "Location occupancy metrics"),
+            new("warehouse_utilization", "3PL Company Utilization", "Slot occupancy metrics"),
             new("carrier_performance", "Carrier Performance", "Inbound/outbound by carrier"),
-            new("daily_kpi", "Daily KPI", "Key warehouse KPIs for today")
+            new("daily_kpi", "Daily KPI", "Key 3PL company KPIs for today")
         ];
         return Task.FromResult(catalog);
     }
@@ -86,7 +86,7 @@ public class ExportReportQueryHandler : IRequestHandler<ExportReportQuery, byte[
                 var rows = await q.OrderBy(i => i.MaterialCode).Select(i => new
                 {
                     i.MaterialCode, i.MaterialDescription, i.BatchNumber, i.RemainingWeight, i.Quantity,
-                    Customer = i.Customer!.Name, Warehouse = i.Warehouse!.Name, Location = i.Location!.Code,
+                    Customer = i.Customer!.Name, ThreePlCompany = i.Warehouse!.Name, Slot = i.Location!.Code,
                     i.PalletId, Status = i.Status.ToString(), i.LastUpdatedAt
                 }).ToListAsync(cancellationToken);
                 return _excel.ExportInventory(rows, companyName);
