@@ -111,6 +111,14 @@ export interface OutboundLine {
   boxCount: number;
 }
 
+export interface OutboundAttachment {
+  name: string;
+  size: number;
+  type: string;
+  /** Optional base64 data URL for demo/local persistence of smaller files. */
+  dataUrl?: string;
+}
+
 export interface OutboundOrder {
   id: string;
   orderNumber: string;
@@ -120,7 +128,13 @@ export interface OutboundOrder {
   customerName?: string;
   shipDate: string;
   carrier?: string;
+  address?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  /** Legacy / display summary of ship-to. */
   destination?: string;
+  attachment?: OutboundAttachment;
   status: OutboundStatus;
   shippedAt?: string;
   lineCount?: number;

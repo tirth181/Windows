@@ -14,6 +14,7 @@ import {
   PageHeader,
   StatusBadge,
 } from "@/components/ui";
+import { formatShipTo } from "@/lib/ship-to";
 import { formatWeight } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -71,7 +72,8 @@ export default function OutboundPage() {
               <th className="px-4 py-3 font-semibold">Customer</th>
               <th className="px-4 py-3 font-semibold">3PL company</th>
               <th className="px-4 py-3 font-semibold">Ship date</th>
-              <th className="px-4 py-3 font-semibold">Destination</th>
+              <th className="px-4 py-3 font-semibold">Ship-to</th>
+              <th className="px-4 py-3 font-semibold">Attachment</th>
               <th className="px-4 py-3 font-semibold">Weight (lbs)</th>
               <th className="px-4 py-3 font-semibold">Status</th>
               <th className="px-4 py-3 font-semibold">Actions</th>
@@ -96,7 +98,18 @@ export default function OutboundPage() {
                 <td className="px-4 py-3 tabular-nums text-[var(--muted)]">
                   <FormattedDate date={row.shipDate} />
                 </td>
-                <td className="px-4 py-3">{row.destination || "—"}</td>
+                <td className="px-4 py-3 max-w-[220px]">
+                  <span className="line-clamp-2">{formatShipTo(row) || "—"}</span>
+                </td>
+                <td className="px-4 py-3 text-xs text-[var(--muted)]">
+                  {row.attachment?.name ? (
+                    <span className="font-[family-name:var(--font-mono)] text-[var(--brand-ink)]">
+                      {row.attachment.name}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="px-4 py-3 tabular-nums">
                   {row.totalWeight != null ? formatWeight(row.totalWeight) : "—"}
                 </td>

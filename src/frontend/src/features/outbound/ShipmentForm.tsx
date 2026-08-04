@@ -9,7 +9,7 @@ import {
   type ColDef,
   type CellValueChangedEvent,
 } from "ag-grid-community";
-import { Plus, CheckCircle2, Save } from "lucide-react";
+import { Plus, CheckCircle2, Save, Paperclip, X } from "lucide-react";
 import { Button, Input, Select, PageHeader, TypeaheadInput } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import {
@@ -23,9 +23,19 @@ import {
   loadKnownCustomers,
   resolveOrRememberCustomer,
 } from "@/lib/customers";
+import { formatFileSize, formatShipTo } from "@/lib/ship-to";
 import { formatWeight } from "@/lib/utils";
-import type { Customer, OutboundLine, OutboundOrder } from "@/types";
+import type {
+  Customer,
+  OutboundAttachment,
+  OutboundLine,
+  OutboundOrder,
+} from "@/types";
 import { useAuthStore } from "@/stores/auth-store";
+
+const MAX_ATTACHMENT_BYTES = 1.5 * 1024 * 1024;
+const ATTACHMENT_ACCEPT =
+  ".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.txt,.csv";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -86,7 +96,12 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
   const [knownCustomers, setKnownCustomers] = useState<Customer[]>(DEMO_CUSTOMERS);
   const [shipDate, setShipDate] = useState("");
   const [carrier, setCarrier] = useState("");
-  const [destination, setDestination] = useState("");
+  const [address, setAddress] = useState("");
+  const [state, setState] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [country, setCountry] = useState("United States");
+  const [attachment, setAttachment] = useState<OutboundAttachment | null>(null);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const [lines, setLines] = useState<OutboundLine[]>([
     lineFromInventory("inv-2"),
     lineFromInventory("inv-1"),
@@ -140,7 +155,12 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
         );
         setShipDate(new Date(order.shipDate).toISOString().slice(0, 16));
         setCarrier(order.carrier || "");
-        setDestination(order.destination || "");
+        setAddress(order.address || order.destination || "");
+        setState(order.state || "");
+        setPostalCode(order.postalCode || "");
+        setCountry(order.country || "United States");
+        setAttachment(order.attachment || null);
+        setAttachError(null);
         setLines(linesFromOrder(order));
       } finally {
         if (!cancelled) setLoading(false);
@@ -247,9 +267,45 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
     [knownCustomers],
   );
 
+  const shipToSummary = formatShipTo({
+    address,
+    state,
+    postalCode,
+    country,
+  });
+
   const canConfirm =
-    Boolean(warehouseId && customerName.trim() && destination) &&
-    lines.some((l) => l.materialCode && l.weight > 0);
+    Boolean(
+      warehouseId &&
+        customerName.trim() &&
+        address.trim() &&
+        state.trim() &&
+        postalCode.trim() &&
+        country.trim(),
+    ) && lines.some((l) => l.materialCode && l.weight > 0);
+
+  async function onAttachmentSelected(fileList: FileList | null) {
+    setAttachError(null);
+    const file = fileList?.[0];
+    if (!file) return;
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setAttachError("Attachment must be 1.5 MB or smaller.");
+      return;
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Could not read file."));
+      reader.readAsDataURL(file);
+    }).catch(() => undefined);
+
+    setAttachment({
+      name: file.name,
+      size: file.size,
+      type: file.type || "application/octet-stream",
+      dataUrl,
+    });
+  }
 
   async function persist(nextStatus: OutboundOrder["status"] = status) {
     const customer = await resolveOrRememberCustomer(customerName);
@@ -260,16 +316,26 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
     const warehouse =
       (warehouses.length ? warehouses : DEMO_WAREHOUSES).find((w) => w.id === warehouseId) ||
       DEMO_WAREHOUSES[0];
+    const destination = shipToSummary;
+    const attachmentNote = attachment
+      ? `Attachment: ${attachment.name} (${formatFileSize(attachment.size)})`
+      : undefined;
     const payload = {
       warehouseId,
       warehouseName: warehouse?.name,
       customerId: customer.id,
       customerName: customer.name,
       shipDate: new Date(shipDate).toISOString(),
+      shipmentDate: new Date(shipDate).toISOString(),
       carrier: carrier || undefined,
-      destination: destination || undefined,
-      shippingTerms: destination || undefined,
-      notes: destination || undefined,
+      address: address.trim(),
+      state: state.trim(),
+      postalCode: postalCode.trim(),
+      country: country.trim(),
+      destination,
+      // Backend fields — pack structured ship-to + attachment reference
+      shippingTerms: [destination, attachmentNote].filter(Boolean).join(" | "),
+      customerPo: attachment?.name,
       lines: lines
         .filter((l) => l.materialCode)
         .map((l) => ({
@@ -281,6 +347,7 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
           weight: Number(l.weight) || 0,
           quantity: Number(l.quantity) || 0,
           boxCount: Number(l.boxCount) || 0,
+          palletCount: 1,
         })),
     };
 
@@ -295,6 +362,7 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
       lineCount: payload.lines.length,
       totalWeight: totals.weight,
       totalPallets: totals.pallets,
+      attachment: attachment || undefined,
       lines: lines.filter((l) => l.materialCode),
     };
 
@@ -424,13 +492,97 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
           disabled={readOnly}
         />
         <Input
-          label="Destination"
-          value={destination}
-          onChange={(e) => setDestination(e.target.value)}
-          placeholder="Ship-to address"
+          label="Address"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="Street address"
           disabled={readOnly}
           className="md:col-span-2 xl:col-span-2"
         />
+        <Input
+          label="State"
+          value={state}
+          onChange={(e) => setState(e.target.value)}
+          placeholder="State / province"
+          disabled={readOnly}
+        />
+        <Input
+          label="Postal code"
+          value={postalCode}
+          onChange={(e) => setPostalCode(e.target.value)}
+          placeholder="Postal / ZIP"
+          disabled={readOnly}
+          className="font-[family-name:var(--font-mono)]"
+        />
+        <Input
+          label="Country"
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+          placeholder="Country"
+          disabled={readOnly}
+        />
+        <div className="md:col-span-2 xl:col-span-3">
+          <span className="mb-1.5 block text-sm font-medium text-[var(--brand-ink)]">
+            Document attachment
+          </span>
+          {attachment ? (
+            <div className="flex flex-wrap items-center gap-3 rounded-md border border-[var(--brand-steel)]/15 bg-[var(--surface-raised)] px-3 py-2.5">
+              <Paperclip className="h-4 w-4 text-[var(--accent)]" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-[var(--brand-ink)]">
+                  {attachment.name}
+                </p>
+                <p className="text-xs text-[var(--muted)]">
+                  {formatFileSize(attachment.size)}
+                  {attachment.type ? ` · ${attachment.type}` : ""}
+                </p>
+              </div>
+              {!readOnly ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setAttachment(null);
+                    setAttachError(null);
+                  }}
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Remove
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            <label
+              className={`flex cursor-pointer flex-col items-start gap-1 rounded-md border border-dashed border-[var(--brand-steel)]/25 bg-[var(--surface-raised)]/70 px-3 py-3 transition-colors hover:border-[var(--accent)]/40 ${
+                readOnly ? "pointer-events-none opacity-60" : ""
+              }`}
+            >
+              <span className="inline-flex items-center gap-2 text-sm font-medium text-[var(--brand-ink)]">
+                <Paperclip className="h-4 w-4 text-[var(--muted)]" aria-hidden />
+                Attach document reference
+              </span>
+              <span className="text-xs text-[var(--muted)]">
+                PDF, Office, image, or text — max 1.5 MB
+              </span>
+              <input
+                type="file"
+                className="sr-only"
+                accept={ATTACHMENT_ACCEPT}
+                disabled={readOnly}
+                onChange={(e) => {
+                  void onAttachmentSelected(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          )}
+          {attachError ? (
+            <p className="mt-1.5 text-xs text-[var(--danger)]" role="alert">
+              {attachError}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-2">
