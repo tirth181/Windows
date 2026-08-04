@@ -23,6 +23,9 @@ export default function InboundPage() {
   const canEdit = useAuthStore(
     (s) => s.hasPermission("inbound.edit") || s.hasPermission("admin.full"),
   );
+  const isAdmin = useAuthStore(
+    (s) => s.hasPermission("admin.full") || s.hasPermission("platform.admin"),
+  );
   const [rows, setRows] = useState<InboundLoad[]>(DEMO_INBOUND);
   const [demo, setDemo] = useState(true);
 
@@ -50,7 +53,7 @@ export default function InboundPage() {
     <div className="space-y-4">
       <PageHeader
         title="Inbound"
-        description="Receiving queue and load history. Use Modify to update draft entries."
+        description="Receiving queue and load history. Drafts can be modified; admins can also update received loads."
         actions={
           canCreate ? (
             <Link href="/inbound/new">
@@ -113,7 +116,10 @@ export default function InboundPage() {
                     <Link href={`/inbound/${row.id}`}>
                       <Button variant="outline" size="sm" type="button">
                         <Pencil className="h-3.5 w-3.5" />
-                        {row.status === "Draft" ? "Modify" : "View"}
+                        {row.status === "Draft" ||
+                        (isAdmin && row.status === "Received")
+                          ? "Modify"
+                          : "View"}
                       </Button>
                     </Link>
                   ) : null}

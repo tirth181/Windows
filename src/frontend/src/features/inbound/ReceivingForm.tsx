@@ -69,6 +69,9 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
   const canReceive = useAuthStore(
     (s) => s.hasPermission("inbound.approve") || s.hasPermission("admin.full"),
   );
+  const isAdmin = useAuthStore(
+    (s) => s.hasPermission("admin.full") || s.hasPermission("platform.admin"),
+  );
 
   const [loadNumber, setLoadNumber] = useState<string>("");
   const [status, setStatus] = useState<InboundLoad["status"]>("Draft");
@@ -92,7 +95,12 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(isEdit);
 
-  const readOnly = isEdit && status !== "Draft";
+  // Admins may still modify received loads; cancelled stays locked for everyone
+  const readOnly =
+    isEdit &&
+    (status === "Cancelled" ||
+      (status !== "Draft" && !(isAdmin && status === "Received")));
+  const canAdminEditReceived = isAdmin && status === "Received";
 
   useEffect(() => {
     if (loadId) return;
@@ -332,14 +340,23 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
   }
 
   async function handleSave() {
-    if (!canSave || readOnly || (isEdit && !canEdit)) return;
+    if (!canSave || readOnly || (isEdit && !canEdit && !canAdminEditReceived)) return;
     setSubmitting(true);
     setMessage(null);
     try {
-      const saved = await persist("Draft");
+      // Keep Received status when an admin edits an already-received load
+      const nextStatus = status === "Received" ? "Received" : "Draft";
+      const saved = await persist(nextStatus);
       setLoadNumber(saved.loadNumber);
+      setStatus(saved.status);
       setDone(true);
-      setMessage(isEdit ? "Changes saved." : "Draft created.");
+      setMessage(
+        status === "Received"
+          ? "Received load updated."
+          : isEdit
+            ? "Changes saved."
+            : "Draft created.",
+      );
       setTimeout(() => router.push("/inbound"), 700);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Save failed.");
@@ -349,7 +366,7 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
   }
 
   async function handleReceive() {
-    if (!canSave || !canReceive || readOnly) return;
+    if (!canSave || !canReceive || readOnly || status !== "Draft") return;
     setSubmitting(true);
     setMessage(null);
     try {
@@ -384,10 +401,12 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
         title={isEdit ? `Modify ${loadNumber || "inbound"}` : "New receiving"}
         description={
           readOnly
-            ? "This load is locked because it is no longer a draft. View only."
-            : isEdit
-              ? "Update header fields and material lines, then save."
-              : "Capture load header, scan material lines, then receive into inventory."
+            ? "This load is locked. View only."
+            : canAdminEditReceived
+              ? "Admin override — you can update this received inbound shipment."
+              : isEdit
+                ? "Update header fields and material lines, then save."
+                : "Capture load header, scan material lines, then receive into inventory."
         }
       />
 
@@ -522,14 +541,19 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
             <Button
               variant="secondary"
               size="lg"
-              disabled={!canSave || submitting || done || (isEdit && !canEdit)}
+              disabled={
+                !canSave ||
+                submitting ||
+                done ||
+                (isEdit && !canEdit && !canAdminEditReceived)
+              }
               onClick={handleSave}
             >
               <Save className="h-4 w-4" />
               {submitting ? "Saving…" : "Save changes"}
             </Button>
           ) : null}
-          {!readOnly && canReceive ? (
+          {!readOnly && canReceive && status === "Draft" ? (
             <Button
               size="lg"
               disabled={!canSave || submitting || done}

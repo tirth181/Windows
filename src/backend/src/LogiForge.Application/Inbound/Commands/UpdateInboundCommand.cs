@@ -59,8 +59,16 @@ public class UpdateInboundCommandHandler : IRequestHandler<UpdateInboundCommand,
             .FirstOrDefaultAsync(l => l.Id == request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(InboundLoad), request.Id);
 
+        var isAdmin = _tenant.HasPermission(PermissionCodes.AdminFull)
+            || _tenant.HasPermission(PermissionCodes.PlatformAdmin);
         if (load.Status != InboundStatus.Draft)
-            throw new DomainException("invalid_state", "Only draft inbound loads can be modified.");
+        {
+            // Admins may correct received inbound shipments; others cannot.
+            if (!(isAdmin && load.Status == InboundStatus.Received))
+                throw new DomainException(
+                    "invalid_state",
+                    "Only draft inbound loads can be modified, unless you are an admin updating a received load.");
+        }
 
         // Detach navigations that can confuse FK updates
         load.Customer = null;
