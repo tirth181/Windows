@@ -214,8 +214,9 @@ export function InventoryGrid() {
           : null}
       </p>
 
-      <div className="ag-theme-quartz min-h-[420px] flex-1 overflow-hidden rounded-md border border-[var(--brand-steel)]/15">
+      <div className="ag-theme-quartz h-[480px] w-full overflow-hidden rounded-md border border-[var(--brand-steel)]/15">
         <AgGridReact<InventoryItem>
+          theme="legacy"
           rowData={filtered}
           columnDefs={columnDefs}
           getRowId={(p) => p.data.id}
@@ -224,6 +225,7 @@ export function InventoryGrid() {
             params.data?.status === "Partial" ? "lf-row-partial" : undefined
           }
           animateRows
+          style={{ height: "100%", width: "100%" }}
         />
       </div>
     </div>

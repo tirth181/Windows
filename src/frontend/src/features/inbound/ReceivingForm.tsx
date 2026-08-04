@@ -51,6 +51,10 @@ export function ReceivingForm() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
+  const addLine = useCallback(() => {
+    setLines((prev) => [...prev, newLine()]);
+  }, []);
+
   const columnDefs = useMemo<ColDef<InboundLine>[]>(
     () => [
       { field: "materialCode", headerName: "Material", editable: true, flex: 1.1, minWidth: 130 },
@@ -200,25 +204,28 @@ export function ReceivingForm() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
           Material lines
         </h2>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setLines((prev) => [...prev, newLine()])}
-        >
+        <Button variant="outline" size="sm" type="button" onClick={addLine}>
           <Plus className="h-4 w-4" />
           Add line
         </Button>
       </div>
 
-      <div className="ag-theme-quartz min-h-[280px] flex-1 overflow-hidden rounded-md border border-[var(--brand-steel)]/15">
+      <div className="ag-theme-quartz h-[360px] w-full overflow-hidden rounded-md border border-[var(--brand-steel)]/15">
         <AgGridReact<InboundLine>
+          theme="legacy"
           rowData={lines}
           columnDefs={columnDefs}
           getRowId={(p) => p.data.id}
           onCellValueChanged={onCellValueChanged}
-          defaultColDef={{ resizable: true, sortable: false }}
+          defaultColDef={{
+            resizable: true,
+            sortable: false,
+            editable: true,
+          }}
           stopEditingWhenCellsLoseFocus
           singleClickEdit
+          animateRows
+          style={{ height: "100%", width: "100%" }}
         />
       </div>
 

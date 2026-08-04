@@ -204,15 +204,18 @@ export function ShipmentForm() {
         </Button>
       </div>
 
-      <div className="ag-theme-quartz min-h-[280px] flex-1 overflow-hidden rounded-md border border-[var(--brand-steel)]/15">
+      <div className="ag-theme-quartz h-[360px] w-full overflow-hidden rounded-md border border-[var(--brand-steel)]/15">
         <AgGridReact<OutboundLine>
+          theme="legacy"
           rowData={lines}
           columnDefs={columnDefs}
           getRowId={(p) => p.data.id}
           onCellValueChanged={onCellValueChanged}
-          defaultColDef={{ resizable: true }}
+          defaultColDef={{ resizable: true, editable: true }}
           stopEditingWhenCellsLoseFocus
           singleClickEdit
+          animateRows
+          style={{ height: "100%", width: "100%" }}
         />
       </div>
 
