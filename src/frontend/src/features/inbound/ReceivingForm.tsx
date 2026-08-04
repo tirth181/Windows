@@ -9,11 +9,16 @@ import {
   type ColDef,
   type CellValueChangedEvent,
 } from "ag-grid-community";
-import { Plus, CheckCircle2, Save } from "lucide-react";
-import { Button, Input, Select, PageHeader } from "@/components/ui";
+import { Plus, CheckCircle2, Save, Trash2 } from "lucide-react";
+import { Button, Input, Select, PageHeader, Modal } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import { DEMO_INBOUND, DEMO_LOCATIONS, DEMO_WAREHOUSES } from "@/lib/mock-data";
-import { getDemoItem, upsertDemoItem } from "@/lib/demo-store";
+import {
+  getDemoItem,
+  loadDemoCollection,
+  saveDemoCollection,
+  upsertDemoItem,
+} from "@/lib/demo-store";
 import { formatWeight } from "@/lib/utils";
 import type { InboundLine, InboundLoad } from "@/types";
 import { useAuthStore } from "@/stores/auth-store";
@@ -74,6 +79,12 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
   const isAdmin = useAuthStore(
     (s) => s.hasPermission("admin.full") || s.hasPermission("platform.admin"),
   );
+  const canDelete = useAuthStore(
+    (s) =>
+      s.hasPermission("inbound.delete") ||
+      s.hasPermission("admin.full") ||
+      s.hasPermission("platform.admin"),
+  );
 
   const [loadNumber, setLoadNumber] = useState<string>("");
   const [status, setStatus] = useState<InboundLoad["status"]>("Draft");
@@ -96,6 +107,8 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
   const [done, setDone] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(isEdit);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Admins may still edit received loads; cancelled stays locked for everyone
   const canAdminEditReceived = isAdmin && status === "Received";
@@ -103,6 +116,10 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
     !isEdit ||
     status === "Draft" ||
     canAdminEditReceived;
+  const canDeleteThisLoad =
+    Boolean(loadId) &&
+    canDelete &&
+    (isAdmin || status === "Draft");
   const readOnly =
     viewOnly ||
     (isEdit &&
@@ -398,6 +415,29 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
     }
   }
 
+  async function handleDelete() {
+    if (!loadId || !canDeleteThisLoad) return;
+    setDeleting(true);
+    setMessage(null);
+    try {
+      try {
+        await apiFetch(`/inbound/${loadId}`, { method: "DELETE" });
+      } catch {
+        const next = loadDemoCollection("inbound", DEMO_INBOUND).filter(
+          (r) => r.id !== loadId,
+        );
+        saveDemoCollection("inbound", next);
+      }
+      setConfirmDelete(false);
+      setMessage("Inbound shipment deleted.");
+      setTimeout(() => router.push("/inbound"), 500);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Delete failed.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (loading) {
     return <p className="text-sm text-[var(--muted)]">Loading inbound load…</p>;
   }
@@ -546,6 +586,19 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
           <Button variant="outline" type="button" onClick={() => router.push("/inbound")}>
             Back
           </Button>
+          {canDeleteThisLoad ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="text-[var(--danger)] hover:bg-[var(--danger)]/5"
+              disabled={deleting || submitting}
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </Button>
+          ) : null}
           {viewOnly && canEditThisLoad && (canEdit || canAdminEditReceived) ? (
             <Button
               type="button"
@@ -592,6 +645,38 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
           ) : null}
         </div>
       </footer>
+
+      <Modal
+        open={confirmDelete}
+        title="Delete inbound shipment?"
+        description="This removes the load from the active queue. Admins can delete received loads."
+        onClose={() => {
+          if (!deleting) setConfirmDelete(false);
+        }}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deleting}
+              onClick={() => setConfirmDelete(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={deleting}
+              onClick={() => void handleDelete()}
+              className="bg-[var(--danger)] hover:opacity-90"
+            >
+              {deleting ? "Deleting…" : "Delete shipment"}
+            </Button>
+          </>
+        }
+      >
+        Delete <strong>{loadNumber || "this load"}</strong>
+        {status === "Received" ? " (received — admin delete)." : "."}
+      </Modal>
     </div>
   );
 }

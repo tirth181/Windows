@@ -580,6 +580,7 @@ export const ALL_PERMISSIONS = [
   "inbound.view",
   "inbound.create",
   "inbound.edit",
+  "inbound.delete",
   "inbound.approve",
   "inventory.view",
   "inventory.adjust",

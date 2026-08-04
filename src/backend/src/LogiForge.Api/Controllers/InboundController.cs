@@ -31,8 +31,16 @@ public class InboundController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateInboundRequest request, CancellationToken ct)
         => Ok(await _mediator.Send(new UpdateInboundCommand(id, request), ct));
+
     [HttpPost("{id:guid}/receive")]
     public async Task<IActionResult> Receive(Guid id, CancellationToken ct)
         => Ok(await _mediator.Send(new ReceiveInboundCommand(id), ct));
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        await _mediator.Send(new DeleteInboundCommand(id), ct);
+        return NoContent();
+    }
 }
 
