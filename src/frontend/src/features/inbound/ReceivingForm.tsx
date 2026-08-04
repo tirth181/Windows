@@ -12,7 +12,7 @@ import {
 import { Plus, CheckCircle2, Save } from "lucide-react";
 import { Button, Input, Select, PageHeader } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
-import { DEMO_CUSTOMERS, DEMO_INBOUND, DEMO_WAREHOUSES } from "@/lib/mock-data";
+import { DEMO_INBOUND, DEMO_LOCATIONS, DEMO_WAREHOUSES } from "@/lib/mock-data";
 import { getDemoItem, upsertDemoItem } from "@/lib/demo-store";
 import { formatWeight } from "@/lib/utils";
 import type { InboundLine, InboundLoad } from "@/types";
@@ -75,7 +75,12 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
   const [warehouseId, setWarehouseId] = useState(
     selectedWarehouseId || DEMO_WAREHOUSES[0]?.id || "",
   );
-  const [customerId, setCustomerId] = useState(DEMO_CUSTOMERS[0]?.id || "");
+  const [storageLocationId, setStorageLocationId] = useState(
+    DEMO_LOCATIONS.find((l) => l.warehouseId === (selectedWarehouseId || DEMO_WAREHOUSES[0]?.id))
+      ?.id ||
+      DEMO_LOCATIONS[0]?.id ||
+      "",
+  );
   const [supplierName, setSupplierName] = useState("");
   const [carrier, setCarrier] = useState("");
   const [trailerNumber, setTrailerNumber] = useState("");
@@ -94,6 +99,18 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
     // Set after mount so SSR and first client paint match (empty → then local now)
     setArrivalDate(new Date().toISOString().slice(0, 16));
   }, [loadId]);
+
+  // Keep storage location valid when 3PL company changes
+  useEffect(() => {
+    const stillValid = DEMO_LOCATIONS.some(
+      (l) => l.id === storageLocationId && l.warehouseId === warehouseId,
+    );
+    if (stillValid) return;
+    const next =
+      DEMO_LOCATIONS.find((l) => l.warehouseId === warehouseId && l.isActive) ||
+      DEMO_LOCATIONS.find((l) => l.warehouseId === warehouseId);
+    setStorageLocationId(next?.id || "");
+  }, [warehouseId, storageLocationId]);
 
   useEffect(() => {
     if (!loadId) return;
@@ -117,7 +134,17 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
         setLoadNumber(load.loadNumber);
         setStatus(load.status);
         setWarehouseId(load.warehouseId);
-        setCustomerId(load.customerId);
+        const fromLoad =
+          load.storageLocationId ||
+          DEMO_LOCATIONS.find((l) => l.code === load.storageLocationCode)?.id ||
+          DEMO_LOCATIONS.find(
+            (l) =>
+              l.warehouseId === load.warehouseId &&
+              load.lines?.some((line) => line.locationCode === l.code),
+          )?.id ||
+          DEMO_LOCATIONS.find((l) => l.warehouseId === load.warehouseId)?.id ||
+          "";
+        setStorageLocationId(fromLoad);
         setSupplierName(load.supplierName || "");
         setCarrier(load.carrier || "");
         setTrailerNumber(load.trailerNumber || "");
@@ -158,7 +185,14 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
         minWidth: 120,
         cellClass: "font-mono text-xs",
       },
-      { field: "locationCode", headerName: "Slot", editable: !readOnly, flex: 0.9, minWidth: 110 },
+      {
+        field: "locationCode",
+        headerName: "Storage Location",
+        editable: !readOnly,
+        flex: 1.1,
+        minWidth: 130,
+        cellClass: "font-mono text-xs",
+      },
       {
         field: "weight",
         headerName: "Weight (lbs)",
@@ -205,20 +239,31 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
     );
   }, [lines]);
 
+  const locationOptions = useMemo(
+    () =>
+      DEMO_LOCATIONS.filter((l) => !warehouseId || l.warehouseId === warehouseId).filter(
+        (l) => l.isActive,
+      ),
+    [warehouseId],
+  );
+
   const canSave =
-    Boolean(warehouseId && customerId) &&
+    Boolean(warehouseId && storageLocationId) &&
     lines.some((l) => l.materialCode && (l.weight > 0 || l.quantity > 0));
 
   function buildPayload() {
     const warehouse =
       (warehouses.length ? warehouses : DEMO_WAREHOUSES).find((w) => w.id === warehouseId) ||
       DEMO_WAREHOUSES[0];
-    const customer = DEMO_CUSTOMERS.find((c) => c.id === customerId) || DEMO_CUSTOMERS[0];
+    const location =
+      DEMO_LOCATIONS.find((l) => l.id === storageLocationId) || locationOptions[0];
     return {
       warehouseId,
       warehouseName: warehouse?.name,
-      customerId,
-      customerName: customer?.name,
+      storageLocationId: location?.id,
+      storageLocationCode: location?.code,
+      // Backend still expects a customer id; not shown in inbound UI.
+      customerId: "cust-1",
       supplierName: supplierName || undefined,
       arrivalDate: new Date(arrivalDate).toISOString(),
       carrier: carrier || undefined,
@@ -226,23 +271,31 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
       notes: notes || undefined,
       lines: lines
         .filter((l) => l.materialCode)
-        .map((l) => ({
-          materialCode: l.materialCode,
-          materialDescription: l.materialDescription,
-          batchNumber: l.batchNumber,
-          weight: Number(l.weight) || 0,
-          quantity: Number(l.quantity) || 0,
-          boxCount: Number(l.boxCount) || 0,
-          palletId: l.palletId || undefined,
-          putawayLocationId: undefined as string | undefined,
-          comments: undefined as string | undefined,
-        })),
+        .map((l) => {
+          const lineLoc =
+            DEMO_LOCATIONS.find(
+              (loc) => loc.code === l.locationCode && loc.warehouseId === warehouseId,
+            ) || location;
+          return {
+            materialCode: l.materialCode,
+            materialDescription: l.materialDescription,
+            batchNumber: l.batchNumber,
+            weight: Number(l.weight) || 0,
+            quantity: Number(l.quantity) || 0,
+            boxCount: Number(l.boxCount) || 0,
+            palletId: l.palletId || undefined,
+            locationCode: l.locationCode || location?.code,
+            putawayLocationId: lineLoc?.id,
+            comments: undefined as string | undefined,
+          };
+        }),
     };
   }
 
   async function persist(nextStatus: InboundLoad["status"] = status) {
     const payload = buildPayload();
     const id = loadId || crypto.randomUUID();
+    const defaultCode = payload.storageLocationCode;
     const record: InboundLoad = {
       ...payload,
       id,
@@ -252,7 +305,12 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
       status: nextStatus,
       lineCount: payload.lines.length,
       totalWeight: totals.weight,
-      lines: lines.filter((l) => l.materialCode),
+      lines: lines
+        .filter((l) => l.materialCode)
+        .map((l) => ({
+          ...l,
+          locationCode: l.locationCode || defaultCode,
+        })),
     };
 
     try {
@@ -351,13 +409,24 @@ export function ReceivingForm({ loadId }: ReceivingFormProps) {
           }))}
         />
         <Select
-          label="Customer"
-          value={customerId}
-          onChange={(e) => setCustomerId(e.target.value)}
+          label="Storage Location"
+          value={storageLocationId}
+          onChange={(e) => {
+            const nextId = e.target.value;
+            setStorageLocationId(nextId);
+            const code = DEMO_LOCATIONS.find((l) => l.id === nextId)?.code;
+            if (!code || readOnly) return;
+            // Prefill empty line putaway codes from the header storage location
+            setLines((prev) =>
+              prev.map((line) =>
+                line.locationCode ? line : { ...line, locationCode: code },
+              ),
+            );
+          }}
           disabled={readOnly}
-          options={DEMO_CUSTOMERS.filter((c) => c.isActive).map((c) => ({
-            value: c.id,
-            label: `${c.code} — ${c.name}`,
+          options={locationOptions.map((l) => ({
+            value: l.id,
+            label: `${l.code}${l.zone ? ` · Zone ${l.zone}` : ""}`,
           }))}
         />
         <Input

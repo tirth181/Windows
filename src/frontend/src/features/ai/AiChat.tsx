@@ -16,7 +16,7 @@ function buildReply(prompt: string): AiMessage {
 
   if (lower.includes("inbound") || lower.includes("received")) {
     content =
-      "Today: 6 inbound loads staged. INB-2026-0841 (Acme) is still Draft at LogiForge Demo 3PL — ready for receiving when dock 2 opens.";
+      "Today: 6 inbound loads staged. INB-2026-0841 is still Draft at LogiForge Demo 3PL (putaway A-01-01) — ready for receiving when dock 2 opens.";
     actions.push({ label: "Open inbound", href: "/inbound" });
   } else if (lower.includes("delay") || lower.includes("outbound")) {
     content =

@@ -69,7 +69,7 @@ export default function InboundPage() {
           <thead className="bg-[#eef3f8] text-xs uppercase tracking-wide text-[var(--muted)]">
             <tr>
               <th className="px-4 py-3 font-semibold">Load</th>
-              <th className="px-4 py-3 font-semibold">Customer</th>
+              <th className="px-4 py-3 font-semibold">Storage Location</th>
               <th className="px-4 py-3 font-semibold">3PL company</th>
               <th className="px-4 py-3 font-semibold">Arrival</th>
               <th className="px-4 py-3 font-semibold">Lines</th>
@@ -92,8 +92,10 @@ export default function InboundPage() {
                     <p className="text-xs text-[var(--muted)]">{row.carrier}</p>
                   ) : null}
                 </td>
-                <td className="px-4 py-3 text-[var(--brand-ink)]">
-                  {row.customerName}
+                <td className="px-4 py-3 font-[family-name:var(--font-mono)] text-[var(--brand-ink)]">
+                  {row.storageLocationCode ||
+                    row.lines?.find((l) => l.locationCode)?.locationCode ||
+                    "—"}
                 </td>
                 <td className="px-4 py-3">{row.warehouseName}</td>
                 <td className="px-4 py-3 tabular-nums text-[var(--muted)]">

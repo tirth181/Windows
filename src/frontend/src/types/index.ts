@@ -63,8 +63,11 @@ export interface InboundLoad {
   loadNumber: string;
   warehouseId: string;
   warehouseName?: string;
-  customerId: string;
+  /** Optional — kept for API compatibility; not shown on inbound UI. */
+  customerId?: string;
   customerName?: string;
+  storageLocationId?: string;
+  storageLocationCode?: string;
   supplierName?: string;
   arrivalDate: string;
   carrier?: string;
