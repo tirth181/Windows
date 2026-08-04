@@ -5,6 +5,7 @@ using LogiForge.Application;
 using LogiForge.Infrastructure;
 using LogiForge.Infrastructure.Persistence.Seed;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -43,7 +44,25 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "LogiForge_Dev_Signing_Key_ChangeMe_32chars!";
+var jwtKey = builder.Configuration["Jwt:Key"];
+var isDev = builder.Environment.IsDevelopment();
+if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Contains("ChangeMe", StringComparison.OrdinalIgnoreCase))
+{
+    if (!isDev)
+    {
+        throw new InvalidOperationException(
+            "Jwt:Key must be configured to a strong secret (32+ chars) outside Development. " +
+            "Set the Jwt__Key environment variable or Key Vault secret.");
+    }
+
+    jwtKey = "LogiForge_Dev_Signing_Key_ChangeMe_32chars!";
+}
+
+if (jwtKey.Length < 32)
+{
+    throw new InvalidOperationException("Jwt:Key must be at least 32 characters.");
+}
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -55,15 +74,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "LogiForge",
             ValidAudience = builder.Configuration["Jwt:Audience"] ?? "LogiForge",
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ClockSkew = TimeSpan.FromMinutes(1)
         };
     });
 // Entra ID: add .AddOpenIdConnect(...) when AzureAd options are configured.
 
 builder.Services.AddAuthorization();
+
+var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:3000"];
 builder.Services.AddCors(o => o.AddPolicy("frontend", p =>
-    p.WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:3000"])
-        .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
+    p.WithOrigins(corsOrigins)
+        .AllowAnyHeader()
+        .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+        .AllowCredentials()));
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -74,6 +98,27 @@ builder.Services.AddRateLimiter(options =>
         opt.PermitLimit = 120;
         opt.QueueLimit = 0;
     });
+    options.AddFixedWindowLimiter("auth", opt =>
+    {
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.PermitLimit = 10;
+        opt.QueueLimit = 0;
+    });
+});
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // Trust reverse proxies (Cloudflare / nginx / App Gateway) in front of the API.
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
+    options.Preload = true;
 });
 
 builder.Services.AddHealthChecks()
@@ -81,10 +126,23 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseSerilogRequestLogging();
-app.UseSwagger();
-app.UseSwaggerUI();
+
+if (!isDev)
+{
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
+
+if (isDev || builder.Configuration.GetValue("Swagger:Enabled", false))
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
 app.UseCors("frontend");
 app.UseRateLimiter();
 app.UseAuthentication();

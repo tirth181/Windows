@@ -23,6 +23,9 @@ public interface IPasswordHasher
 
 public class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
 {
+    public const int MaxFailedAttempts = 5;
+    public static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
+
     private readonly IRepository<AppUser> _users;
     private readonly IRepository<LoginHistory> _loginHistory;
     private readonly IUnitOfWork _uow;
@@ -52,8 +55,20 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Warehouse)
             .FirstOrDefaultAsync(u => u.Email == email && !u.IsDeleted, cancellationToken);
 
-        async Task Fail(string reason)
+        async Task Fail(string reason, bool countTowardLockout = false)
         {
+            if (user is not null && countTowardLockout)
+            {
+                user.FailedLoginAttempts++;
+                if (user.FailedLoginAttempts >= MaxFailedAttempts)
+                {
+                    user.LockoutEnd = DateTime.UtcNow.Add(LockoutDuration);
+                    user.FailedLoginAttempts = 0;
+                }
+
+                _users.Update(user);
+            }
+
             await _loginHistory.AddAsync(new LoginHistory
             {
                 UserId = user?.Id,
@@ -67,7 +82,7 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
             await _uow.SaveChangesAsync(cancellationToken);
         }
 
-        if (user is null || string.IsNullOrEmpty(user.PasswordHash) || !_hasher.Verify(request.Password, user.PasswordHash))
+        if (user is null)
         {
             await Fail("Invalid credentials");
             throw new DomainException("invalid_credentials", "Invalid email or password.");
@@ -82,7 +97,13 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
         if (user.LockoutEnd is not null && user.LockoutEnd > DateTime.UtcNow)
         {
             await Fail("Locked out");
-            throw new DomainException("locked", "Account is temporarily locked.");
+            throw new DomainException("locked", "Account is temporarily locked. Try again later.");
+        }
+
+        if (string.IsNullOrEmpty(user.PasswordHash) || !_hasher.Verify(request.Password, user.PasswordHash))
+        {
+            await Fail("Invalid credentials", countTowardLockout: true);
+            throw new DomainException("invalid_credentials", "Invalid email or password.");
         }
 
         var permissions = user.IsPlatformAdmin
@@ -109,6 +130,7 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
             .ToList();
 
         user.FailedLoginAttempts = 0;
+        user.LockoutEnd = null;
         user.LastLoginAt = DateTime.UtcNow;
         _users.Update(user);
 

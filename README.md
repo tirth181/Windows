@@ -4,6 +4,10 @@ Enterprise AI-powered multi-tenant 3PL Warehouse Management Platform.
 
 **Stack:** Next.js · ASP.NET Core 8 · PostgreSQL · Redis · Azure OpenAI · Docker / Kubernetes
 
+## Product site
+
+The root route (`/`) is the publishable marketing site — best use cases, live product videos, and security positioning. The operations app starts at `/login` → `/dashboard`.
+
 ## Documentation
 
 | Doc | Description |
@@ -13,7 +17,7 @@ Enterprise AI-powered multi-tenant 3PL Warehouse Management Platform.
 | [API Design](docs/API_DESIGN.md) | REST endpoints |
 | [UI/UX Design](docs/UI_UX_DESIGN.md) | Brand & UX principles |
 | [Implementation Plan](docs/IMPLEMENTATION_PLAN.md) | Phased delivery |
-| [Security](docs/SECURITY.md) | AuthN/Z and controls |
+| [Security](docs/SECURITY.md) | AuthN/Z, headers, publish checklist |
 | [Folder Structure](docs/FOLDER_STRUCTURE.md) | Monorepo layout |
 
 ## Quick Start
@@ -24,15 +28,14 @@ Enterprise AI-powered multi-tenant 3PL Warehouse Management Platform.
 docker compose up --build
 ```
 
-- Web: http://localhost:3000  
-- API / Swagger: http://localhost:5080/swagger  
+- Marketing + app: http://localhost:3000  
+- API / Swagger (dev): http://localhost:5080/swagger  
 
 ### Local development
 
 **Backend**
 
 ```bash
-# Start Postgres + Redis (or use docker compose up postgres redis)
 export PATH="$HOME/.dotnet:$PATH"
 cd src/backend
 dotnet run --project src/LogiForge.Api --urls http://localhost:5080
@@ -42,11 +45,14 @@ dotnet run --project src/LogiForge.Api --urls http://localhost:5080
 
 ```bash
 cd src/frontend
+cp ../../.env.example .env.local   # optional
+# For local demo bypass when the API is down:
+# NEXT_PUBLIC_ALLOW_DEMO_LOGIN=true
 npm install
 npm run dev
 ```
 
-### Demo credentials
+### Demo credentials (seeded API)
 
 | User | Password | Role |
 |------|----------|------|
@@ -54,6 +60,8 @@ npm run dev
 | `floor@harborline.com` | `ChangeMe!Floor12` | Warehouse Associate |
 
 Demo tenant: **Harborline Logistics** · Warehouse **DFW1**
+
+> Offline demo login (any password) is only available when `NEXT_PUBLIC_ALLOW_DEMO_LOGIN=true`. Leave this **false** for production publishes.
 
 ## Modules
 
@@ -64,10 +72,15 @@ Demo tenant: **Harborline Logistics** · Warehouse **DFW1**
 ## Security highlights
 
 - Row-level multi-tenant isolation (`company_id` + EF global filters)
-- JWT + Microsoft Entra ID (OIDC) ready
+- JWT required in non-Development (startup fails on weak/missing keys)
+- Login lockout (5 failures / 15 minutes) + auth rate limits (10/min)
+- Security headers + HSTS + CSP on web and API
+- Swagger off by default outside Development
 - Fine-grained RBAC (module / action / warehouse scope)
 - Permission-aware AI assistant (never returns unauthorized data)
-- Audit logs, rate limiting, OpenAPI
+- Audit logs + login history
+
+See [docs/SECURITY.md](docs/SECURITY.md) for the full production publish checklist.
 
 ## Tests & CI
 

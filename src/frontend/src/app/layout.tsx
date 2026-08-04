@@ -22,11 +22,19 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || "https://logiforge.app",
+  ),
   title: {
-    default: "LogiForge 3PL",
+    default: "LogiForge — Warehouse command for modern 3PLs",
     template: "%s · LogiForge",
   },
-  description: "Enterprise 3PL company management system",
+  description:
+    "Enterprise AI-powered multi-tenant 3PL warehouse management system",
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({

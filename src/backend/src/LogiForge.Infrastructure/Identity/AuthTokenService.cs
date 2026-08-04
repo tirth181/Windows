@@ -26,7 +26,9 @@ public class AuthTokenService : IAuthTokenService
 
     public (string AccessToken, string RefreshToken, DateTime ExpiresAt) IssueTokens(AppUser user, IEnumerable<string> permissions)
     {
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"] ?? "LogiForge_Dev_Signing_Key_ChangeMe_32chars!"));
+        var jwtKey = _config["Jwt:Key"]
+            ?? throw new InvalidOperationException("Jwt:Key is not configured.");
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
         var expires = DateTime.UtcNow.AddMinutes(int.TryParse(_config["Jwt:ExpiryMinutes"], out var m) ? m : 60);
 

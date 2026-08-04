@@ -31,5 +31,8 @@ pgdata/
 # Misc
 coverage/
 .turbo/
-EOF
+
+# Local recording scratch (final assets live under src/frontend/public)
+demo-screenshots/
+demo-videos/
 

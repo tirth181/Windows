@@ -1,24 +1,18 @@
-"use client";
+import type { Metadata } from "next";
+import { MarketingLanding } from "@/features/marketing/MarketingLanding";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/stores/auth-store";
+export const metadata: Metadata = {
+  title: "LogiForge — Warehouse command for modern 3PLs",
+  description:
+    "Enterprise AI-powered multi-tenant 3PL warehouse management. Receive, store, ship, and brief your floor with permission-aware AI.",
+  openGraph: {
+    title: "LogiForge — Warehouse command for modern 3PLs",
+    description:
+      "Receive, store, ship, and brief your floor — with AI that respects every permission boundary.",
+    images: [{ url: "/marketing/hero-warehouse.jpg" }],
+  },
+};
 
 export default function HomePage() {
-  const router = useRouter();
-  const token = useAuthStore((s) => s.token);
-  const hydrated = useAuthStore((s) => s.hydrated);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    router.replace(token ? "/dashboard" : "/login");
-  }, [hydrated, token, router]);
-
-  return (
-    <div className="lf-atmosphere flex min-h-screen items-center justify-center text-[var(--muted)]">
-      <p className="relative z-10 font-[family-name:var(--font-display)] text-sm tracking-wide">
-        Opening LogiForge…
-      </p>
-    </div>
-  );
+  return <MarketingLanding />;
 }

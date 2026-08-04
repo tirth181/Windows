@@ -34,7 +34,9 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=logiforge;Username=logiforge;Password=logiforge
       ConnectionStrings__Redis: redis:6379
+      Jwt__Key: LogiForge_Dev_Signing_Key_ChangeMe_32chars!
       Cors__Origins__0: http://localhost:3000
+      Swagger__Enabled: "true"
       Cache__UseRedis: "true"
     ports:
       - "5080:8080"
@@ -49,7 +51,12 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.web
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:5080/api/v1
+        NEXT_PUBLIC_API_URL: /api/v1
+        NEXT_PUBLIC_ALLOW_DEMO_LOGIN: "true"
+        API_ORIGIN: http://api:8080
+    environment:
+      API_ORIGIN: http://api:8080
+      NEXT_PUBLIC_ALLOW_DEMO_LOGIN: "true"
     ports:
       - "3000:3000"
     depends_on:
