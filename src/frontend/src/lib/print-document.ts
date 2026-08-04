@@ -287,16 +287,12 @@ export function buildInboundReceiptPrintHtml(load: InboundLoad): string {
 </html>`;
 }
 
-/**
- * Print only the inbound receipt (via hidden iframe — never the app chrome).
- * Browser "Save as PDF" works from the same print dialog.
- */
-export function printInboundReceipt(load: InboundLoad): void {
+/** Print a standalone HTML document via hidden iframe (never the app chrome). */
+export function printHtmlDocument(html: string, title = "Print"): void {
   if (typeof window === "undefined" || typeof document === "undefined") return;
 
-  const html = buildInboundReceiptPrintHtml(load);
   const iframe = document.createElement("iframe");
-  iframe.setAttribute("title", "Inbound receipt print");
+  iframe.setAttribute("title", title);
   iframe.style.position = "fixed";
   iframe.style.right = "0";
   iframe.style.bottom = "0";
@@ -330,9 +326,19 @@ export function printInboundReceipt(load: InboundLoad): void {
     }
   };
 
-  // Allow layout/images to settle before printing
   iframe.onload = () => setTimeout(doPrint, 150);
   setTimeout(doPrint, 350);
+}
+
+/**
+ * Print only the inbound receipt (via hidden iframe — never the app chrome).
+ * Browser "Save as PDF" works from the same print dialog.
+ */
+export function printInboundReceipt(load: InboundLoad): void {
+  printHtmlDocument(
+    buildInboundReceiptPrintHtml(load),
+    `Inbound ${load.loadNumber || "receipt"}`,
+  );
 }
 
 /** @deprecated Use printInboundReceipt — kept for any older callers. */

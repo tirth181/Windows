@@ -9,10 +9,15 @@ import {
   type ICellRendererParams,
   type RowClassParams,
 } from "ag-grid-community";
-import { Download, SlidersHorizontal } from "lucide-react";
+import { Download, Eye, Printer, SlidersHorizontal } from "lucide-react";
 import { apiFetch, apiFetchOrDemo } from "@/lib/api";
 import { DEMO_INVENTORY } from "@/lib/mock-data";
 import { loadDemoCollection, upsertDemoItem } from "@/lib/demo-store";
+import {
+  companyInventoryRows,
+  exportInventoryCsv,
+  printInventorySnapshot,
+} from "@/lib/inventory-snapshot";
 import type { InventoryItem, InventoryStatus } from "@/types";
 import {
   Button,
@@ -24,6 +29,7 @@ import {
   StatusBadge,
 } from "@/components/ui";
 import { useAuthStore } from "@/stores/auth-store";
+import { InventorySnapshotPreview } from "./InventorySnapshotPreview";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -67,6 +73,8 @@ export function InventoryGrid() {
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [snapshotOpen, setSnapshotOpen] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,8 +157,13 @@ export function InventoryGrid() {
     }
   }
 
+  const companyRows = useMemo(
+    () => companyInventoryRows(rows, myCompanyId),
+    [rows, myCompanyId],
+  );
+
   const filtered = useMemo(() => {
-    return rows.filter((row) => {
+    return companyRows.filter((row) => {
       if (
         material &&
         !row.materialCode.toLowerCase().includes(material.toLowerCase()) &&
@@ -159,7 +172,6 @@ export function InventoryGrid() {
         return false;
       }
       if (batch && !row.batchNumber.toLowerCase().includes(batch.toLowerCase())) return false;
-      if (myCompanyId && row.warehouseId !== myCompanyId) return false;
       if (location && !(row.locationCode || "").toLowerCase().includes(location.toLowerCase())) {
         return false;
       }
@@ -169,7 +181,18 @@ export function InventoryGrid() {
       if (status && row.status !== (status as InventoryStatus)) return false;
       return true;
     });
-  }, [rows, material, batch, myCompanyId, location, pallet, status]);
+  }, [companyRows, material, batch, location, pallet, status]);
+
+  function handleExport() {
+    exportInventoryCsv(companyRows, myCompany);
+    setActionMessage(
+      `Exported ${companyRows.length} inventory line${companyRows.length === 1 ? "" : "s"} to CSV.`,
+    );
+  }
+
+  function handlePrintSnapshot() {
+    printInventorySnapshot(companyRows, myCompany);
+  }
 
   const columnDefs = useMemo<ColDef<InventoryItem>[]>(
     () => [
@@ -253,15 +276,45 @@ export function InventoryGrid() {
     <div className="flex min-h-[calc(100vh-8rem)] flex-col gap-4">
       <PageHeader
         title="Inventory"
-        description="Filter on-hand stock. Partial rows are highlighted for floor attention."
+        description="Filter on-hand stock. Preview, print, or export the full snapshot for your 3PL company."
         actions={
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4" />
-            Export
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSnapshotOpen(true)}
+            >
+              <Eye className="h-4 w-4" />
+              Preview
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handlePrintSnapshot}
+            >
+              <Printer className="h-4 w-4" />
+              Print
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+            >
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+          </div>
         }
       />
       <DemoBanner show={demo} />
+      {actionMessage ? (
+        <p className="text-sm text-[var(--success)]" role="status">
+          {actionMessage}
+        </p>
+      ) : null}
 
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Input
@@ -312,7 +365,7 @@ export function InventoryGrid() {
         <span className="font-medium text-[var(--brand-ink)] tabular-nums">
           {filtered.length}
         </span>{" "}
-        of {rows.length} items
+        of {companyRows.length} company items
         {filtered.some((r) => r.status === "Partial")
           ? " · Partial rows marked with amber edge"
           : null}
@@ -382,6 +435,13 @@ export function InventoryGrid() {
           />
         </div>
       </Modal>
+
+      <InventorySnapshotPreview
+        open={snapshotOpen}
+        rows={companyRows}
+        company={myCompany}
+        onClose={() => setSnapshotOpen(false)}
+      />
     </div>
   );
 }
