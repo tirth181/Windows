@@ -11,7 +11,7 @@ import {
 } from "ag-grid-community";
 import { Download, SlidersHorizontal } from "lucide-react";
 import { apiFetch, apiFetchOrDemo } from "@/lib/api";
-import { DEMO_CUSTOMERS, DEMO_INVENTORY, DEMO_WAREHOUSES } from "@/lib/mock-data";
+import { DEMO_CUSTOMERS, DEMO_INVENTORY } from "@/lib/mock-data";
 import { loadDemoCollection, upsertDemoItem } from "@/lib/demo-store";
 import type { InventoryItem, InventoryStatus } from "@/types";
 import {
@@ -52,12 +52,13 @@ export function InventoryGrid() {
   const canAdjust = useAuthStore(
     (s) => s.hasPermission("inventory.adjust") || s.hasPermission("admin.full"),
   );
+  const myCompanyId = useAuthStore((s) => s.selectedWarehouseId);
+  const myCompany = useAuthStore((s) => s.warehouses[0]);
   const [rows, setRows] = useState<InventoryItem[]>(DEMO_INVENTORY);
   const [demo, setDemo] = useState(true);
   const [material, setMaterial] = useState("");
   const [batch, setBatch] = useState("");
   const [customerId, setCustomerId] = useState("");
-  const [warehouseId, setWarehouseId] = useState("");
   const [location, setLocation] = useState("");
   const [pallet, setPallet] = useState("");
   const [status, setStatus] = useState("");
@@ -160,7 +161,7 @@ export function InventoryGrid() {
       }
       if (batch && !row.batchNumber.toLowerCase().includes(batch.toLowerCase())) return false;
       if (customerId && row.customerId !== customerId) return false;
-      if (warehouseId && row.warehouseId !== warehouseId) return false;
+      if (myCompanyId && row.warehouseId !== myCompanyId) return false;
       if (location && !(row.locationCode || "").toLowerCase().includes(location.toLowerCase())) {
         return false;
       }
@@ -170,7 +171,7 @@ export function InventoryGrid() {
       if (status && row.status !== (status as InventoryStatus)) return false;
       return true;
     });
-  }, [rows, material, batch, customerId, warehouseId, location, pallet, status]);
+  }, [rows, material, batch, customerId, myCompanyId, location, pallet, status]);
 
   const columnDefs = useMemo<ColDef<InventoryItem>[]>(
     () => [
@@ -289,17 +290,13 @@ export function InventoryGrid() {
             ...DEMO_CUSTOMERS.map((c) => ({ value: c.id, label: c.name })),
           ]}
         />
-        <Select
+        <Input
           label="3PL company"
-          value={warehouseId}
-          onChange={(e) => setWarehouseId(e.target.value)}
-          options={[
-            { value: "", label: "All 3PL companies" },
-            ...DEMO_WAREHOUSES.map((w) => ({
-              value: w.id,
-              label: w.name,
-            })),
-          ]}
+          value={
+            myCompany ? `${myCompany.code} — ${myCompany.name}` : "Your 3PL company"
+          }
+          readOnly
+          disabled
         />
         <Input
           label="Slot"

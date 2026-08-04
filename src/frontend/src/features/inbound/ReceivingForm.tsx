@@ -12,13 +12,14 @@ import {
 import { Plus, CheckCircle2, Save, Trash2 } from "lucide-react";
 import { Button, Input, Select, PageHeader, Modal } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
-import { DEMO_INBOUND, DEMO_LOCATIONS, DEMO_WAREHOUSES } from "@/lib/mock-data";
+import { DEMO_INBOUND, DEMO_LOCATIONS } from "@/lib/mock-data";
 import {
   getDemoItem,
   loadDemoCollection,
   saveDemoCollection,
   upsertDemoItem,
 } from "@/lib/demo-store";
+import { companiesForUser } from "@/lib/companies-scope";
 import { formatWeight } from "@/lib/utils";
 import type { InboundLine, InboundLoad } from "@/types";
 import { useAuthStore } from "@/stores/auth-store";
@@ -68,8 +69,11 @@ interface ReceivingFormProps {
 export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) {
   const router = useRouter();
   const isEdit = Boolean(loadId);
+  const user = useAuthStore((s) => s.user);
   const selectedWarehouseId = useAuthStore((s) => s.selectedWarehouseId);
   const warehouses = useAuthStore((s) => s.warehouses);
+  const myCompanies = warehouses.length ? warehouses : companiesForUser(user);
+  const myCompany = myCompanies[0];
   const canEdit = useAuthStore(
     (s) => s.hasPermission("inbound.edit") || s.hasPermission("admin.full"),
   );
@@ -89,12 +93,13 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
   const [loadNumber, setLoadNumber] = useState<string>("");
   const [status, setStatus] = useState<InboundLoad["status"]>("Draft");
   const [warehouseId, setWarehouseId] = useState(
-    selectedWarehouseId || DEMO_WAREHOUSES[0]?.id || "",
+    selectedWarehouseId || myCompany?.id || "",
   );
   const [storageLocationId, setStorageLocationId] = useState(
-    DEMO_LOCATIONS.find((l) => l.warehouseId === (selectedWarehouseId || DEMO_WAREHOUSES[0]?.id))
-      ?.id ||
-      DEMO_LOCATIONS[0]?.id ||
+    DEMO_LOCATIONS.find(
+      (l) => l.warehouseId === (selectedWarehouseId || myCompany?.id),
+    )?.id ||
+      DEMO_LOCATIONS.find((l) => l.warehouseId === myCompany?.id)?.id ||
       "",
   );
   const [supplierName, setSupplierName] = useState("");
@@ -131,6 +136,12 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
     // Set after mount so SSR and first client paint match (empty → then local now)
     setArrivalDate(new Date().toISOString().slice(0, 16));
   }, [loadId]);
+
+  // Receiving is always scoped to the signed-in 3PL company only
+  useEffect(() => {
+    if (!myCompany) return;
+    if (warehouseId !== myCompany.id) setWarehouseId(myCompany.id);
+  }, [myCompany, warehouseId]);
 
   // Keep storage plant valid when 3PL company changes
   useEffect(() => {
@@ -284,13 +295,11 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
     lines.some((l) => l.materialCode && (l.weight > 0 || l.quantity > 0));
 
   function buildPayload() {
-    const warehouse =
-      (warehouses.length ? warehouses : DEMO_WAREHOUSES).find((w) => w.id === warehouseId) ||
-      DEMO_WAREHOUSES[0];
+    const warehouse = myCompany || myCompanies[0];
     const location =
       DEMO_LOCATIONS.find((l) => l.id === storageLocationId) || locationOptions[0];
     return {
-      warehouseId,
+      warehouseId: warehouse?.id || warehouseId,
       warehouseName: warehouse?.name,
       storageLocationId: location?.id,
       storageLocationCode: location?.code,
@@ -466,15 +475,16 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <Select
+        <Input
           label="3PL company"
-          value={warehouseId}
-          onChange={(e) => setWarehouseId(e.target.value)}
-          disabled={readOnly}
-          options={(warehouses.length ? warehouses : DEMO_WAREHOUSES).map((w) => ({
-            value: w.id,
-            label: `${w.code} — ${w.name}`,
-          }))}
+          value={
+            myCompany
+              ? `${myCompany.code} — ${myCompany.name}`
+              : "Your 3PL company"
+          }
+          readOnly
+          disabled
+          hint="Only your 3PL company is available for receiving."
         />
         <Select
           label="Storage Plant"

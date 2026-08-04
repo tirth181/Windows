@@ -10,19 +10,19 @@ import {
   type CellValueChangedEvent,
 } from "ag-grid-community";
 import { Plus, CheckCircle2, Save, Paperclip, X } from "lucide-react";
-import { Button, Input, Select, PageHeader, TypeaheadInput } from "@/components/ui";
+import { Button, Input, PageHeader, TypeaheadInput } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import {
   DEMO_CUSTOMERS,
   DEMO_INVENTORY,
   DEMO_OUTBOUND,
-  DEMO_WAREHOUSES,
 } from "@/lib/mock-data";
 import { getDemoItem, upsertDemoItem } from "@/lib/demo-store";
 import {
   loadKnownCustomers,
   resolveOrRememberCustomer,
 } from "@/lib/customers";
+import { companiesForUser } from "@/lib/companies-scope";
 import { formatFileSize, formatShipTo } from "@/lib/ship-to";
 import { formatWeight } from "@/lib/utils";
 import type {
@@ -77,8 +77,11 @@ interface ShipmentFormProps {
 export function ShipmentForm({ orderId }: ShipmentFormProps) {
   const router = useRouter();
   const isEdit = Boolean(orderId);
+  const user = useAuthStore((s) => s.user);
   const selectedWarehouseId = useAuthStore((s) => s.selectedWarehouseId);
   const warehouses = useAuthStore((s) => s.warehouses);
+  const myCompanies = warehouses.length ? warehouses : companiesForUser(user);
+  const myCompany = myCompanies[0];
   const canEdit = useAuthStore(
     (s) => s.hasPermission("outbound.edit") || s.hasPermission("admin.full"),
   );
@@ -89,7 +92,7 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
   const [orderNumber, setOrderNumber] = useState("");
   const [status, setStatus] = useState<OutboundOrder["status"]>("Draft");
   const [warehouseId, setWarehouseId] = useState(
-    selectedWarehouseId || DEMO_WAREHOUSES[0]?.id || "",
+    selectedWarehouseId || myCompany?.id || "",
   );
   const [customerId, setCustomerId] = useState<string>("");
   const [customerName, setCustomerName] = useState("");
@@ -122,6 +125,12 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
     if (orderId) return;
     setShipDate(new Date().toISOString().slice(0, 16));
   }, [orderId]);
+
+  // Shipping is always scoped to the signed-in 3PL company only
+  useEffect(() => {
+    if (!myCompany) return;
+    if (warehouseId !== myCompany.id) setWarehouseId(myCompany.id);
+  }, [myCompany, warehouseId]);
 
   useEffect(() => {
     if (!orderId) return;
@@ -313,15 +322,13 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
     setCustomerName(customer.name);
     setKnownCustomers(loadKnownCustomers());
 
-    const warehouse =
-      (warehouses.length ? warehouses : DEMO_WAREHOUSES).find((w) => w.id === warehouseId) ||
-      DEMO_WAREHOUSES[0];
+    const warehouse = myCompany || myCompanies[0];
     const destination = shipToSummary;
     const attachmentNote = attachment
       ? `Attachment: ${attachment.name} (${formatFileSize(attachment.size)})`
       : undefined;
     const payload = {
-      warehouseId,
+      warehouseId: warehouse?.id || warehouseId,
       warehouseName: warehouse?.name,
       customerId: customer.id,
       customerName: customer.name,
@@ -452,15 +459,16 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <Select
+        <Input
           label="3PL company"
-          value={warehouseId}
-          onChange={(e) => setWarehouseId(e.target.value)}
-          disabled={readOnly}
-          options={(warehouses.length ? warehouses : DEMO_WAREHOUSES).map((w) => ({
-            value: w.id,
-            label: `${w.code} — ${w.name}`,
-          }))}
+          value={
+            myCompany
+              ? `${myCompany.code} — ${myCompany.name}`
+              : "Your 3PL company"
+          }
+          readOnly
+          disabled
+          hint="Only your 3PL company is available for shipping."
         />
         <TypeaheadInput
           label="Customer"

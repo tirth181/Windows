@@ -23,6 +23,7 @@ export default function OutboundPage() {
   const canEdit = useAuthStore(
     (s) => s.hasPermission("outbound.edit") || s.hasPermission("admin.full"),
   );
+  const myCompanyId = useAuthStore((s) => s.selectedWarehouseId);
   const [rows, setRows] = useState<OutboundOrder[]>(DEMO_OUTBOUND);
   const [demo, setDemo] = useState(true);
 
@@ -38,13 +39,16 @@ export default function OutboundPage() {
       const data = Array.isArray(result.data)
         ? result.data
         : result.data.items ?? local;
-      setRows(data);
+      const scoped = myCompanyId
+        ? data.filter((r) => r.warehouseId === myCompanyId)
+        : data;
+      setRows(scoped);
       setDemo(result.demo);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [myCompanyId]);
 
   return (
     <div className="space-y-4">

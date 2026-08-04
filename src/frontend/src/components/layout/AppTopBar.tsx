@@ -11,10 +11,12 @@ export function AppTopBar({ onToggleNav }: { onToggleNav?: () => void }) {
   const user = useAuthStore((s) => s.user);
   const warehouses = useAuthStore((s) => s.warehouses);
   const selectedWarehouseId = useAuthStore((s) => s.selectedWarehouseId);
-  const setSelectedWarehouse = useAuthStore((s) => s.setSelectedWarehouse);
   const logout = useAuthStore((s) => s.logout);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const myCompany =
+    warehouses.find((w) => w.id === selectedWarehouseId) || warehouses[0];
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -39,24 +41,18 @@ export function AppTopBar({ onToggleNav }: { onToggleNav?: () => void }) {
         </button>
         <div className="flex min-w-0 items-center gap-2">
           <Building2 className="hidden h-4 w-4 text-[var(--muted)] sm:block" aria-hidden />
-          <label className="sr-only" htmlFor="company-select">
-            3PL company
-          </label>
-          <select
-            id="company-select"
-            value={selectedWarehouseId ?? ""}
-            onChange={(e) => setSelectedWarehouse(e.target.value)}
+          <div
             className={cn(
-              "h-10 max-w-[260px] truncate rounded-md border border-[var(--brand-steel)]/15 bg-[var(--surface)] px-3 text-sm font-medium text-[var(--brand-ink)]",
-              "focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/25",
+              "flex h-10 max-w-[280px] items-center truncate rounded-md border border-[var(--brand-steel)]/15 bg-[var(--surface)] px-3 text-sm font-medium text-[var(--brand-ink)]",
             )}
+            title="Your 3PL company"
           >
-            {warehouses.map((wh) => (
-              <option key={wh.id} value={wh.id}>
-                {wh.code} — {wh.name}
-              </option>
-            ))}
-          </select>
+            <span className="truncate">
+              {myCompany
+                ? `${myCompany.code} — ${myCompany.name}`
+                : user?.companyName || "3PL company"}
+            </span>
+          </div>
         </div>
       </div>
 

@@ -36,6 +36,7 @@ export default function InboundPage() {
       s.hasPermission("admin.full") ||
       s.hasPermission("platform.admin"),
   );
+  const myCompanyId = useAuthStore((s) => s.selectedWarehouseId);
   const [rows, setRows] = useState<InboundLoad[]>(DEMO_INBOUND);
   const [demo, setDemo] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState<InboundLoad | null>(null);
@@ -51,9 +52,12 @@ export default function InboundPage() {
     const data = Array.isArray(result.data)
       ? result.data
       : result.data.items ?? local;
-    setRows(data);
+    const scoped = myCompanyId
+      ? data.filter((r) => r.warehouseId === myCompanyId)
+      : data;
+    setRows(scoped);
     setDemo(result.demo);
-  }, []);
+  }, [myCompanyId]);
 
   useEffect(() => {
     let cancelled = false;

@@ -4,7 +4,11 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { AuthUser, Warehouse } from "@/types";
 import { clearTokens, setTokens, clearAuthBounceGuard } from "@/lib/auth";
-import { ALL_PERMISSIONS, DEMO_WAREHOUSES } from "@/lib/mock-data";
+import { ALL_PERMISSIONS } from "@/lib/mock-data";
+import {
+  companiesForUser,
+  resolveUserCompany,
+} from "@/lib/companies-scope";
 
 interface AuthState {
   user: AuthUser | null;
@@ -20,47 +24,76 @@ interface AuthState {
   setSelectedWarehouse: (id: string) => void;
 }
 
-const demoUser = (email: string, displayName?: string): AuthUser => ({
-  id: "demo-user",
-  email,
-  displayName: displayName || email.split("@")[0] || "Operator",
-  companyId: "co-1",
-  companyName: "LogiForge Demo 3PL",
-  roles: ["CompanyAdmin"],
-  permissions: ALL_PERMISSIONS,
-});
+function buildDemoUser(email: string, displayName?: string): AuthUser {
+  const scoped = resolveUserCompany({
+    id: "demo-user",
+    email,
+    displayName: displayName || email.split("@")[0] || "Operator",
+    companyId: "co-1",
+    companyName: "",
+    roles: ["CompanyAdmin"],
+    permissions: ALL_PERMISSIONS,
+  });
+  return {
+    id: "demo-user",
+    email,
+    displayName: displayName || email.split("@")[0] || "Operator",
+    companyId: scoped.companyId,
+    companyName: scoped.companyName,
+    roles: ["CompanyAdmin"],
+    permissions: ALL_PERMISSIONS,
+  };
+}
+
+function applyCompanyScope(user: AuthUser | null) {
+  const scoped = companiesForUser(user);
+  return {
+    warehouses: scoped,
+    selectedWarehouseId: scoped[0]?.id ?? null,
+  };
+}
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
       token: null,
-      warehouses: DEMO_WAREHOUSES,
-      selectedWarehouseId: DEMO_WAREHOUSES[0]?.id ?? null,
+      warehouses: [],
+      selectedWarehouseId: null,
       hydrated: false,
       setHydrated: (value) => set({ hydrated: value }),
       loginDemo: (email, displayName) => {
         const token = "demo-token";
+        const user = buildDemoUser(email, displayName);
         setTokens(token);
         clearAuthBounceGuard();
         set({
-          user: demoUser(email, displayName),
+          user,
           token,
-          warehouses: DEMO_WAREHOUSES,
-          selectedWarehouseId: DEMO_WAREHOUSES[0]?.id ?? null,
+          ...applyCompanyScope(user),
         });
       },
       login: (user, token, refreshToken) => {
         setTokens(token, refreshToken);
         clearAuthBounceGuard();
-        set({ user, token });
+        // Prefer API warehouses if present later; for now scope to the user's company
+        set({
+          user: {
+            ...user,
+            companyId: resolveUserCompany(user).companyId,
+            companyName: user.companyName || resolveUserCompany(user).companyName,
+          },
+          token,
+          ...applyCompanyScope(user),
+        });
       },
       logout: () => {
         clearTokens();
         set({
           user: null,
           token: null,
-          selectedWarehouseId: DEMO_WAREHOUSES[0]?.id ?? null,
+          warehouses: [],
+          selectedWarehouseId: null,
         });
       },
       hasPermission: (code) => {
@@ -70,11 +103,14 @@ export const useAuthStore = create<AuthState>()(
         }
         return perms.includes(code);
       },
-      setSelectedWarehouse: (id) => set({ selectedWarehouseId: id }),
+      setSelectedWarehouse: (id) => {
+        const allowed = get().warehouses.some((w) => w.id === id);
+        if (!allowed) return;
+        set({ selectedWarehouseId: id });
+      },
     }),
     {
       name: "logiforge-auth",
-      // Avoid reading localStorage during SSR / first client paint (hydration mismatch)
       skipHydration: true,
       partialize: (state) => ({
         user: state.user,
@@ -85,14 +121,20 @@ export const useAuthStore = create<AuthState>()(
         if (state?.token) {
           setTokens(state.token);
         }
-        // Always use current demo/company options so renamed labels apply after updates
         if (state) {
-          state.warehouses = DEMO_WAREHOUSES;
-          if (
-            !state.selectedWarehouseId ||
-            !DEMO_WAREHOUSES.some((w) => w.id === state.selectedWarehouseId)
-          ) {
-            state.selectedWarehouseId = DEMO_WAREHOUSES[0]?.id ?? null;
+          const scoped = applyCompanyScope(state.user);
+          state.warehouses = scoped.warehouses;
+          state.selectedWarehouseId =
+            scoped.warehouses.find((w) => w.id === state.selectedWarehouseId)
+              ?.id ??
+            scoped.selectedWarehouseId;
+          if (state.user) {
+            const resolved = resolveUserCompany(state.user);
+            state.user = {
+              ...state.user,
+              companyId: resolved.companyId,
+              companyName: resolved.companyName,
+            };
           }
         }
         state?.setHydrated(true);
