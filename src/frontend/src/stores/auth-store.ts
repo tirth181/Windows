@@ -22,6 +22,12 @@ interface AuthState {
   logout: () => void;
   hasPermission: (code: string) => boolean;
   setSelectedWarehouse: (id: string) => void;
+  /** Refresh top-bar / scope labels after Companies module edits. */
+  syncCompanyProfile: (company: {
+    id: string;
+    name: string;
+    code?: string;
+  }) => void;
 }
 
 function buildDemoUser(email: string, displayName?: string): AuthUser {
@@ -76,15 +82,16 @@ export const useAuthStore = create<AuthState>()(
       login: (user, token, refreshToken) => {
         setTokens(token, refreshToken);
         clearAuthBounceGuard();
-        // Prefer API warehouses if present later; for now scope to the user's company
+        const resolved = resolveUserCompany(user);
+        const scopedUser = {
+          ...user,
+          companyId: resolved.companyId,
+          companyName: resolved.companyName,
+        };
         set({
-          user: {
-            ...user,
-            companyId: resolveUserCompany(user).companyId,
-            companyName: user.companyName || resolveUserCompany(user).companyName,
-          },
+          user: scopedUser,
           token,
-          ...applyCompanyScope(user),
+          ...applyCompanyScope(scopedUser),
         });
       },
       logout: () => {
@@ -107,6 +114,18 @@ export const useAuthStore = create<AuthState>()(
         const allowed = get().warehouses.some((w) => w.id === id);
         if (!allowed) return;
         set({ selectedWarehouseId: id });
+      },
+      syncCompanyProfile: (company) => {
+        const current = get().user;
+        if (!current || current.companyId !== company.id) return;
+        const scopedUser = {
+          ...current,
+          companyName: company.name,
+        };
+        set({
+          user: scopedUser,
+          ...applyCompanyScope(scopedUser),
+        });
       },
     }),
     {

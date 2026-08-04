@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { DEMO_COMPANY } from "@/lib/mock-data";
+import { DEMO_COMPANIES } from "@/lib/mock-data";
 import { loadDemoCollection, saveDemoCollection, upsertDemoItem } from "@/lib/demo-store";
 import type { Company } from "@/types";
 import {
@@ -16,28 +16,6 @@ import {
   StatusBadge,
 } from "@/components/ui";
 import { useAuthStore } from "@/stores/auth-store";
-
-const DEMO_COMPANIES: Company[] = [
-  DEMO_COMPANY,
-  {
-    id: "co-2",
-    name: "Harborline Logistics",
-    legalName: "Harborline Logistics Inc.",
-    status: "Active",
-    primaryContactEmail: "admin@harborline.com",
-    timezone: "America/Chicago",
-    code: "HARBOR",
-  },
-  {
-    id: "co-3",
-    name: "Summit Freight Partners",
-    legalName: "Summit Freight Partners LLC",
-    status: "Trial",
-    primaryContactEmail: "ops@summitfreight.example",
-    timezone: "America/New_York",
-    code: "SUMMIT",
-  },
-];
 
 type FormState = {
   id?: string;
@@ -80,6 +58,7 @@ export default function CompaniesPage() {
       s.hasPermission("platform.admin"),
   );
   const currentCompanyId = useAuthStore((s) => s.user?.companyId);
+  const syncCompanyProfile = useAuthStore((s) => s.syncCompanyProfile);
   const [companies, setCompanies] = useState<Company[]>(DEMO_COMPANIES);
   const [demo, setDemo] = useState(true);
   const [query, setQuery] = useState("");
@@ -166,6 +145,8 @@ export default function CompaniesPage() {
           body: JSON.stringify(payload),
         });
       }
+      // Keep local scope cache in sync so top-bar / receiving use the new name.
+      upsertDemoItem("companies", DEMO_COMPANIES, record);
       await refresh();
       setDemo(false);
     } catch {
@@ -173,6 +154,11 @@ export default function CompaniesPage() {
       setCompanies(next);
       setDemo(true);
     } finally {
+      syncCompanyProfile({
+        id: record.id,
+        name: record.name,
+        code: record.code,
+      });
       setSaving(false);
       setOpen(false);
       setMessage(form.id ? "3PL company updated." : "3PL company added.");

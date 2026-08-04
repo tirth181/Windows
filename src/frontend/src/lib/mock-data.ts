@@ -90,6 +90,26 @@ export const DEMO_LOCATIONS: StorageLocation[] = [
     bin: "02",
     isActive: true,
   },
+  {
+    id: "loc-5",
+    warehouseId: "wh-2",
+    code: "D-01-02",
+    zone: "D",
+    aisle: "01",
+    rack: "02",
+    bin: "01",
+    isActive: true,
+  },
+  {
+    id: "loc-6",
+    warehouseId: "wh-3",
+    code: "E-02-01",
+    zone: "E",
+    aisle: "02",
+    rack: "01",
+    bin: "01",
+    isActive: true,
+  },
 ];
 
 export const DEMO_INBOUND: InboundLoad[] = [
@@ -425,6 +445,29 @@ export const DEMO_COMPANY: Company = {
   primaryContactEmail: "ops@logiforge.demo",
   timezone: "America/Chicago",
 };
+
+/** Seed tenants for the Companies module (overridable via local demo store). */
+export const DEMO_COMPANIES: Company[] = [
+  DEMO_COMPANY,
+  {
+    id: "co-2",
+    name: "Harborline Logistics",
+    legalName: "Harborline Logistics Inc.",
+    status: "Active",
+    primaryContactEmail: "admin@harborline.com",
+    timezone: "America/Chicago",
+    code: "HARBOR",
+  },
+  {
+    id: "co-3",
+    name: "Summit Freight Partners",
+    legalName: "Summit Freight Partners LLC",
+    status: "Trial",
+    primaryContactEmail: "ops@summitfreight.example",
+    timezone: "America/New_York",
+    code: "SUMMIT",
+  },
+];
 
 export const DEMO_INTEGRATIONS: IntegrationConnection[] = [
   {
