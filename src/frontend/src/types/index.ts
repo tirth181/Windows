@@ -138,6 +138,7 @@ export interface AppUser {
 export interface Company {
   id: string;
   name: string;
+  code?: string;
   legalName?: string;
   status: "Trial" | "Active" | "Suspended";
   primaryContactEmail?: string;

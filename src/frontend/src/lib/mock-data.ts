@@ -400,6 +400,7 @@ export const DEMO_USERS: AppUser[] = [
 export const DEMO_COMPANY: Company = {
   id: "co-1",
   name: "LogiForge Demo 3PL",
+  code: "LOGIFORGE",
   legalName: "LogiForge Logistics LLC",
   status: "Active",
   primaryContactEmail: "ops@logiforge.demo",

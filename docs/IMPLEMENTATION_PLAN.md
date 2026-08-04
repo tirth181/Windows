@@ -14,7 +14,7 @@
 - [x] Inventory ledger + statuses
 - [x] Outbound shipping with inventory deduction
 - [x] Dashboard summary API + UI
-- [x] Customers & storage locations
+- [x] Customers & 3PL company administration (add/modify/remove)
 
 ## Phase 3 — Reports & Communications
 - [x] Report runners (inbound/outbound/inventory/partial/KPI)

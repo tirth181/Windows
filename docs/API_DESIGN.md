@@ -46,7 +46,7 @@ Idempotency: `Idempotency-Key` on receive/ship
 | POST/PUT | `/roles` | roles.manage |
 | GET | `/permissions` | roles.view |
 
-## Customers & Locations
+## Customers & 3PL Companies
 
 | Method | Path | Permission |
 |--------|------|------------|

@@ -58,7 +58,7 @@ Demo tenant: **Harborline Logistics** · Warehouse **DFW1**
 ## Modules
 
 1. Dashboard · 2. Inbound · 3. Inventory · 4. Outbound · 5. Reports  
-6. Customers · 7. Locations · 8. Users · 9. Company · 10. AI Assistant  
+6. Customers · 7. 3PL Companies · 8. Users · 9. Company · 10. AI Assistant  
 11. Integration Center · 12. Settings
 
 ## Security highlights
