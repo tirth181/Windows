@@ -10,7 +10,7 @@ import {
   type CellValueChangedEvent,
 } from "ag-grid-community";
 import { Plus, CheckCircle2, Save } from "lucide-react";
-import { Button, Input, Select, PageHeader } from "@/components/ui";
+import { Button, Input, Select, PageHeader, TypeaheadInput } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import {
   DEMO_CUSTOMERS,
@@ -19,8 +19,12 @@ import {
   DEMO_WAREHOUSES,
 } from "@/lib/mock-data";
 import { getDemoItem, upsertDemoItem } from "@/lib/demo-store";
+import {
+  loadKnownCustomers,
+  resolveOrRememberCustomer,
+} from "@/lib/customers";
 import { formatWeight } from "@/lib/utils";
-import type { OutboundLine, OutboundOrder } from "@/types";
+import type { Customer, OutboundLine, OutboundOrder } from "@/types";
 import { useAuthStore } from "@/stores/auth-store";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -77,7 +81,9 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
   const [warehouseId, setWarehouseId] = useState(
     selectedWarehouseId || DEMO_WAREHOUSES[0]?.id || "",
   );
-  const [customerId, setCustomerId] = useState(DEMO_CUSTOMERS[0]?.id || "");
+  const [customerId, setCustomerId] = useState<string>("");
+  const [customerName, setCustomerName] = useState("");
+  const [knownCustomers, setKnownCustomers] = useState<Customer[]>(DEMO_CUSTOMERS);
   const [shipDate, setShipDate] = useState("");
   const [carrier, setCarrier] = useState("");
   const [destination, setDestination] = useState("");
@@ -92,6 +98,10 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
   const [loading, setLoading] = useState(isEdit);
 
   const readOnly = isEdit && status !== "Draft" && status !== "Picking";
+
+  useEffect(() => {
+    setKnownCustomers(loadKnownCustomers());
+  }, []);
 
   useEffect(() => {
     if (orderId) return;
@@ -121,6 +131,13 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
         setStatus(order.status);
         setWarehouseId(order.warehouseId);
         setCustomerId(order.customerId);
+        const known = loadKnownCustomers();
+        setKnownCustomers(known);
+        setCustomerName(
+          order.customerName ||
+            known.find((c) => c.id === order.customerId)?.name ||
+            "",
+        );
         setShipDate(new Date(order.shipDate).toISOString().slice(0, 16));
         setCarrier(order.carrier || "");
         setDestination(order.destination || "");
@@ -221,20 +238,33 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
     return { weight, qty, boxes, pallets, materials };
   }, [lines]);
 
+  const customerSuggestions = useMemo(
+    () =>
+      knownCustomers
+        .filter((c) => c.isActive)
+        .map((c) => c.name)
+        .filter(Boolean),
+    [knownCustomers],
+  );
+
   const canConfirm =
-    Boolean(warehouseId && customerId && destination) &&
+    Boolean(warehouseId && customerName.trim() && destination) &&
     lines.some((l) => l.materialCode && l.weight > 0);
 
-  function buildPayload() {
+  async function persist(nextStatus: OutboundOrder["status"] = status) {
+    const customer = await resolveOrRememberCustomer(customerName);
+    setCustomerId(customer.id);
+    setCustomerName(customer.name);
+    setKnownCustomers(loadKnownCustomers());
+
     const warehouse =
       (warehouses.length ? warehouses : DEMO_WAREHOUSES).find((w) => w.id === warehouseId) ||
       DEMO_WAREHOUSES[0];
-    const customer = DEMO_CUSTOMERS.find((c) => c.id === customerId) || DEMO_CUSTOMERS[0];
-    return {
+    const payload = {
       warehouseId,
       warehouseName: warehouse?.name,
-      customerId,
-      customerName: customer?.name,
+      customerId: customer.id,
+      customerName: customer.name,
       shipDate: new Date(shipDate).toISOString(),
       carrier: carrier || undefined,
       destination: destination || undefined,
@@ -253,10 +283,7 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
           boxCount: Number(l.boxCount) || 0,
         })),
     };
-  }
 
-  async function persist(nextStatus: OutboundOrder["status"] = status) {
-    const payload = buildPayload();
     const id = orderId || crypto.randomUUID();
     const record: OutboundOrder = {
       ...payload,
@@ -367,15 +394,20 @@ export function ShipmentForm({ orderId }: ShipmentFormProps) {
             label: `${w.code} — ${w.name}`,
           }))}
         />
-        <Select
+        <TypeaheadInput
           label="Customer"
-          value={customerId}
-          onChange={(e) => setCustomerId(e.target.value)}
+          value={customerName}
+          onChange={(value) => {
+            setCustomerName(value);
+            const match = knownCustomers.find(
+              (c) => c.name.toLowerCase() === value.trim().toLowerCase(),
+            );
+            setCustomerId(match?.id || "");
+          }}
+          options={customerSuggestions}
+          placeholder="Type customer name"
+          hint="Type a name or pick a prior customer — new names are saved for next time."
           disabled={readOnly}
-          options={DEMO_CUSTOMERS.filter((c) => c.isActive).map((c) => ({
-            value: c.id,
-            label: `${c.code} — ${c.name}`,
-          }))}
         />
         <Input
           label="Ship date"

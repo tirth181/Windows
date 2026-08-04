@@ -9,3 +9,4 @@ export { DemoBanner } from "./DemoBanner";
 export { Modal } from "./Modal";
 export { RelativeTime } from "./RelativeTime";
 export { FormattedDate } from "./FormattedDate";
+export { TypeaheadInput } from "./TypeaheadInput";
