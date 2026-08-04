@@ -3,11 +3,13 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-/** Locations module replaced by 3PL Companies. */
+/** Legacy locations route — storage plants are managed under Storage Plants. */
 export default function LocationsRedirectPage() {
   const router = useRouter();
   useEffect(() => {
-    router.replace("/companies");
+    router.replace("/storage-plants");
   }, [router]);
-  return <p className="text-sm text-[var(--muted)]">Redirecting to 3PL Companies…</p>;
+  return (
+    <p className="text-sm text-[var(--muted)]">Redirecting to Storage Plants…</p>
+  );
 }

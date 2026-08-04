@@ -13,6 +13,7 @@ import type {
   OutboundOrder,
   ReportDefinition,
   StorageLocation,
+  StoragePlant,
   Warehouse,
 } from "@/types";
 
@@ -46,6 +47,41 @@ export const DEMO_CUSTOMERS: Customer[] = [
     name: "Pacific Components",
     contactEmail: "ops@paccomp.example",
     isActive: false,
+  },
+];
+
+/** Admin-configured storage plants (per 3PL company). */
+export const DEMO_STORAGE_PLANTS: StoragePlant[] = [
+  {
+    id: "plant-1",
+    warehouseId: "wh-1",
+    code: "CHI-NORTH",
+    name: "Chicago North Plant",
+    address: "1200 Industrial Pkwy, Chicago, IL",
+    isActive: true,
+  },
+  {
+    id: "plant-2",
+    warehouseId: "wh-1",
+    code: "CHI-SOUTH",
+    name: "Chicago South Plant",
+    address: "88 Harbor Rd, Chicago, IL",
+    isActive: true,
+  },
+  {
+    id: "plant-3",
+    warehouseId: "wh-2",
+    code: "HARBOR-MAIN",
+    name: "Harbor Main Plant",
+    address: "400 Dockside Ave, Houston, TX",
+    isActive: true,
+  },
+  {
+    id: "plant-4",
+    warehouseId: "wh-3",
+    code: "SUMMIT-1",
+    name: "Summit Plant 1",
+    isActive: true,
   },
 ];
 
@@ -118,8 +154,8 @@ export const DEMO_INBOUND: InboundLoad[] = [
     loadNumber: "INB-2026-0841",
     warehouseId: "wh-1",
     warehouseName: "LogiForge Demo 3PL",
-    storageLocationId: "loc-1",
-    storageLocationCode: "A-01-01",
+    storageLocationId: "plant-1",
+    storageLocationCode: "CHI-NORTH",
     supplierName: "Midwest Steel Co",
     arrivalDate: "2026-08-04T08:30:00Z",
     carrier: "Swift Transport",
@@ -179,8 +215,8 @@ export const DEMO_INBOUND: InboundLoad[] = [
     loadNumber: "INB-2026-0838",
     warehouseId: "wh-1",
     warehouseName: "LogiForge Demo 3PL",
-    storageLocationId: "loc-3",
-    storageLocationCode: "B-12-04",
+    storageLocationId: "plant-2",
+    storageLocationCode: "CHI-SOUTH",
     supplierName: "Helsinki Resins",
     arrivalDate: "2026-08-03T14:15:00Z",
     carrier: "XPO Logistics",
@@ -194,8 +230,8 @@ export const DEMO_INBOUND: InboundLoad[] = [
     loadNumber: "INB-2026-0832",
     warehouseId: "wh-2",
     warehouseName: "Harborline Logistics",
-    storageLocationId: "loc-4",
-    storageLocationCode: "C-03-08",
+    storageLocationId: "plant-3",
+    storageLocationCode: "HARBOR-MAIN",
     arrivalDate: "2026-08-02T11:00:00Z",
     status: "Cancelled",
     lineCount: 2,

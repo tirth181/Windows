@@ -12,7 +12,7 @@ import {
 import { Plus, CheckCircle2, Save, Trash2 } from "lucide-react";
 import { Button, Input, Select, PageHeader, Modal } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
-import { DEMO_INBOUND, DEMO_LOCATIONS } from "@/lib/mock-data";
+import { DEMO_INBOUND } from "@/lib/mock-data";
 import {
   getDemoItem,
   loadDemoCollection,
@@ -20,8 +20,12 @@ import {
   upsertDemoItem,
 } from "@/lib/demo-store";
 import { companiesForUser } from "@/lib/companies-scope";
+import {
+  findStoragePlant,
+  plantsForCompany,
+} from "@/lib/storage-plants";
 import { formatWeight } from "@/lib/utils";
-import type { InboundLine, InboundLoad } from "@/types";
+import type { InboundLine, InboundLoad, StoragePlant } from "@/types";
 import { useAuthStore } from "@/stores/auth-store";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -95,13 +99,8 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
   const [warehouseId, setWarehouseId] = useState(
     selectedWarehouseId || myCompany?.id || "",
   );
-  const [storageLocationId, setStorageLocationId] = useState(
-    DEMO_LOCATIONS.find(
-      (l) => l.warehouseId === (selectedWarehouseId || myCompany?.id),
-    )?.id ||
-      DEMO_LOCATIONS.find((l) => l.warehouseId === myCompany?.id)?.id ||
-      "",
-  );
+  const [storagePlants, setStoragePlants] = useState<StoragePlant[]>([]);
+  const [storageLocationId, setStorageLocationId] = useState("");
   const [supplierName, setSupplierName] = useState("");
   const [carrier, setCarrier] = useState("");
   const [trailerNumber, setTrailerNumber] = useState("");
@@ -143,17 +142,18 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
     if (warehouseId !== myCompany.id) setWarehouseId(myCompany.id);
   }, [myCompany, warehouseId]);
 
-  // Keep storage plant valid when 3PL company changes
+  // Only admin-configured plants for this 3PL company
   useEffect(() => {
-    const stillValid = DEMO_LOCATIONS.some(
-      (l) => l.id === storageLocationId && l.warehouseId === warehouseId,
-    );
+    const plants = plantsForCompany(warehouseId);
+    setStoragePlants(plants);
+    const stillValid = plants.some((p) => p.id === storageLocationId);
     if (stillValid) return;
-    const next =
-      DEMO_LOCATIONS.find((l) => l.warehouseId === warehouseId && l.isActive) ||
-      DEMO_LOCATIONS.find((l) => l.warehouseId === warehouseId);
-    setStorageLocationId(next?.id || "");
-  }, [warehouseId, storageLocationId]);
+    // Keep a previously saved plant id while editing even if inactive
+    if (isEdit && storageLocationId && findStoragePlant(storageLocationId)) {
+      return;
+    }
+    setStorageLocationId(plants[0]?.id || "");
+  }, [warehouseId, storageLocationId, isEdit]);
 
   useEffect(() => {
     if (!loadId) return;
@@ -179,13 +179,8 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
         setWarehouseId(load.warehouseId);
         const fromLoad =
           load.storageLocationId ||
-          DEMO_LOCATIONS.find((l) => l.code === load.storageLocationCode)?.id ||
-          DEMO_LOCATIONS.find(
-            (l) =>
-              l.warehouseId === load.warehouseId &&
-              load.lines?.some((line) => line.locationCode === l.code),
-          )?.id ||
-          DEMO_LOCATIONS.find((l) => l.warehouseId === load.warehouseId)?.id ||
+          findStoragePlant(load.storageLocationCode)?.id ||
+          plantsForCompany(load.warehouseId)[0]?.id ||
           "";
         setStorageLocationId(fromLoad);
         setSupplierName(load.supplierName || "");
@@ -282,27 +277,37 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
     );
   }, [lines]);
 
-  const locationOptions = useMemo(
-    () =>
-      DEMO_LOCATIONS.filter((l) => !warehouseId || l.warehouseId === warehouseId).filter(
-        (l) => l.isActive,
-      ),
-    [warehouseId],
-  );
+  const plantOptions = useMemo(() => {
+    const active = storagePlants.filter((p) => p.isActive);
+    // Include the currently selected plant even if inactive (edit/view)
+    if (
+      storageLocationId &&
+      !active.some((p) => p.id === storageLocationId)
+    ) {
+      const selected =
+        storagePlants.find((p) => p.id === storageLocationId) ||
+        findStoragePlant(storageLocationId);
+      if (selected) return [selected, ...active];
+    }
+    return active;
+  }, [storagePlants, storageLocationId]);
 
   const canSave =
     Boolean(warehouseId && storageLocationId) &&
+    plantOptions.some((p) => p.id === storageLocationId) &&
     lines.some((l) => l.materialCode && (l.weight > 0 || l.quantity > 0));
 
   function buildPayload() {
     const warehouse = myCompany || myCompanies[0];
-    const location =
-      DEMO_LOCATIONS.find((l) => l.id === storageLocationId) || locationOptions[0];
+    const plant =
+      plantOptions.find((p) => p.id === storageLocationId) ||
+      findStoragePlant(storageLocationId) ||
+      plantOptions[0];
     return {
       warehouseId: warehouse?.id || warehouseId,
       warehouseName: warehouse?.name,
-      storageLocationId: location?.id,
-      storageLocationCode: location?.code,
+      storageLocationId: plant?.id,
+      storageLocationCode: plant?.code,
       // Backend still expects a customer id; not shown in inbound UI.
       customerId: "cust-1",
       supplierName: supplierName || undefined,
@@ -313,10 +318,6 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
       lines: lines
         .filter((l) => l.materialCode)
         .map((l) => {
-          const lineLoc =
-            DEMO_LOCATIONS.find(
-              (loc) => loc.code === l.locationCode && loc.warehouseId === warehouseId,
-            ) || location;
           return {
             materialCode: l.materialCode,
             materialDescription: l.materialDescription,
@@ -325,8 +326,8 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
             quantity: Number(l.quantity) || 0,
             boxCount: Number(l.boxCount) || 0,
             palletId: l.palletId || undefined,
-            locationCode: l.locationCode || location?.code,
-            putawayLocationId: lineLoc?.id,
+            locationCode: l.locationCode || plant?.code,
+            putawayLocationId: plant?.id,
             comments: undefined as string | undefined,
           };
         }),
@@ -492,19 +493,31 @@ export function ReceivingForm({ loadId, viewOnly = false }: ReceivingFormProps) 
           onChange={(e) => {
             const nextId = e.target.value;
             setStorageLocationId(nextId);
-            const code = DEMO_LOCATIONS.find((l) => l.id === nextId)?.code;
+            const code =
+              plantOptions.find((p) => p.id === nextId)?.code ||
+              findStoragePlant(nextId)?.code;
             if (!code || readOnly) return;
-            // Prefill empty line putaway codes from the header storage plant
+            // Prefill empty line storage locations from the selected plant code
             setLines((prev) =>
               prev.map((line) =>
                 line.locationCode ? line : { ...line, locationCode: code },
               ),
             );
           }}
-          disabled={readOnly}
-          options={locationOptions.map((l) => ({
-            value: l.id,
-            label: `${l.code}${l.zone ? ` · Zone ${l.zone}` : ""}`,
+          disabled={readOnly || plantOptions.length === 0}
+          placeholder={
+            plantOptions.length === 0
+              ? "No plants configured — add under Storage Plants"
+              : "Select storage plant"
+          }
+          error={
+            !readOnly && plantOptions.length === 0
+              ? "An admin must add storage plants for your 3PL company."
+              : undefined
+          }
+          options={plantOptions.map((p) => ({
+            value: p.id,
+            label: `${p.code} — ${p.name}`,
           }))}
         />
         <Input

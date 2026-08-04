@@ -46,6 +46,17 @@ export interface StorageLocation {
   isActive: boolean;
 }
 
+/** Facility / plant configured by a 3PL admin for receiving & shipping. */
+export interface StoragePlant {
+  id: string;
+  /** Scoped to the 3PL company warehouse id (`wh-*`). */
+  warehouseId: string;
+  code: string;
+  name: string;
+  address?: string;
+  isActive: boolean;
+}
+
 export interface InboundLine {
   id: string;
   materialCode: string;
