@@ -9,7 +9,25 @@ public interface IEmailService
 {
     Task QueueAsync(Guid companyId, string templateCode, string to, string subject, string body, string? attachmentPath = null, CancellationToken ct = default);
     Task SendPendingAsync(CancellationToken ct = default);
+    /// <summary>Queue and immediately attempt delivery (SMTP when configured; otherwise log).</summary>
+    Task SendNowAsync(Guid companyId, string templateCode, string to, string subject, string body, CancellationToken ct = default);
 }
+
+public interface IStripeBillingService
+{
+    bool IsConfigured { get; }
+    Task<string> CreateCheckoutSessionAsync(Guid companyId, string planCode, string successUrl, string cancelUrl, CancellationToken ct = default);
+    Task<string> CreateCustomerPortalSessionAsync(Guid companyId, string returnUrl, CancellationToken ct = default);
+    Task HandleWebhookAsync(string json, string? signatureHeader, CancellationToken ct = default);
+}
+
+public record SubscriptionPlanInfo(
+    string Code,
+    string Name,
+    string Description,
+    int PriceMonthlyCents,
+    string? StripePriceId,
+    bool Available);
 
 public interface IExcelExportService
 {

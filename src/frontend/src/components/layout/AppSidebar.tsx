@@ -15,6 +15,7 @@ import {
   Bot,
   Plug,
   Settings,
+  CreditCard,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/users", label: "Users", permission: "users.view", icon: UserCog },
   { href: "/ai", label: "AI Assistant", permission: "ai.use", icon: Bot },
   { href: "/integrations", label: "Integrations", permission: "integrations.manage", icon: Plug },
+  { href: "/billing", label: "Billing", permission: "settings.manage", icon: CreditCard },
   { href: "/settings", label: "Settings", permission: "settings.manage", icon: Settings },
 ];
 

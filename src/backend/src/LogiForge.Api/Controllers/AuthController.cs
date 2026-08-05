@@ -4,6 +4,7 @@ using LogiForge.Application.Auth.Queries;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace LogiForge.Api.Controllers;
 
@@ -22,6 +23,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
@@ -29,6 +31,30 @@ public class AuthController : ControllerBase
         var result = await _mediator.Send(new LoginCommand(request.Email, request.Password, ip, ua), ct);
         return Ok(result);
     }
+
+    [HttpPost("register")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<RegisterResponse>> Register([FromBody] RegisterRequest request, CancellationToken ct)
+        => Ok(await _mediator.Send(new RegisterCommand(request), ct));
+
+    [HttpPost("verify-email")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<MessageResponse>> VerifyEmail([FromBody] VerifyEmailRequest request, CancellationToken ct)
+        => Ok(await _mediator.Send(new VerifyEmailCommand(request.Token), ct));
+
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<MessageResponse>> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken ct)
+        => Ok(await _mediator.Send(new ForgotPasswordCommand(request.Email), ct));
+
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<MessageResponse>> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken ct)
+        => Ok(await _mediator.Send(new ResetPasswordCommand(request.Token, request.NewPassword), ct));
 
     [HttpPost("refresh")]
     [AllowAnonymous]

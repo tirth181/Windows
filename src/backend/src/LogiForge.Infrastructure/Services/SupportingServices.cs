@@ -52,49 +52,6 @@ public class AuditService : IAuditService
     }
 }
 
-public class EmailService : IEmailService
-{
-    private readonly LogiForgeDbContext _db;
-    private readonly ILogger<EmailService> _logger;
-
-    public EmailService(LogiForgeDbContext db, ILogger<EmailService> logger)
-    {
-        _db = db;
-        _logger = logger;
-    }
-
-    public async Task QueueAsync(Guid companyId, string templateCode, string to, string subject, string body, string? attachmentPath = null, CancellationToken ct = default)
-    {
-        _db.EmailOutbox.Add(new EmailOutbox
-        {
-            CompanyId = companyId,
-            TemplateCode = templateCode,
-            ToAddresses = to,
-            Subject = subject,
-            Body = body,
-            AttachmentPath = attachmentPath,
-            Status = EmailOutboxStatus.Pending
-        });
-        await _db.SaveChangesAsync(ct);
-    }
-
-    public async Task SendPendingAsync(CancellationToken ct = default)
-    {
-        var pending = await _db.EmailOutbox.IgnoreQueryFilters()
-            .Where(e => e.Status == EmailOutboxStatus.Pending)
-            .Take(50).ToListAsync(ct);
-
-        foreach (var email in pending)
-        {
-            // Production: SMTP / Microsoft Graph. Dev: log and mark sent.
-            _logger.LogInformation("EMAIL [{Template}] To={To} Subject={Subject}", email.TemplateCode, email.ToAddresses, email.Subject);
-            email.Status = EmailOutboxStatus.Sent;
-            email.SentAt = DateTime.UtcNow;
-        }
-        await _db.SaveChangesAsync(ct);
-    }
-}
-
 public class ExcelExportService : IExcelExportService
 {
     public byte[] ExportInventory(IEnumerable<object> rows, string companyName)

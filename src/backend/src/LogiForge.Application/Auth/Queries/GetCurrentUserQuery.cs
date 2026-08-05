@@ -1,3 +1,4 @@
+using LogiForge.Application.Auth.Commands;
 using LogiForge.Application.Auth.Dtos;
 using LogiForge.Domain.Entities;
 using LogiForge.Domain.Exceptions;
@@ -13,11 +14,13 @@ public class GetCurrentUserQueryHandler : IRequestHandler<GetCurrentUserQuery, U
 {
     private readonly ICurrentUserService _current;
     private readonly IRepository<AppUser> _users;
+    private readonly IUnitOfWork _uow;
 
-    public GetCurrentUserQueryHandler(ICurrentUserService current, IRepository<AppUser> users)
+    public GetCurrentUserQueryHandler(ICurrentUserService current, IRepository<AppUser> users, IUnitOfWork uow)
     {
         _current = current;
         _users = users;
+        _uow = uow;
     }
 
     public async Task<UserProfileDto> Handle(GetCurrentUserQuery request, CancellationToken cancellationToken)
@@ -30,14 +33,18 @@ public class GetCurrentUserQueryHandler : IRequestHandler<GetCurrentUserQuery, U
             .FirstOrDefaultAsync(u => u.Id == _current.UserId, cancellationToken)
             ?? throw new NotFoundException(nameof(AppUser), _current.UserId);
 
+        if (!user.IsPlatformAdmin && user.Company is not null
+            && LoginCommandHandler.SyncTrialExpiry(user.Company))
+        {
+            await _uow.SaveChangesAsync(cancellationToken);
+        }
+
         var warehouses = user.UserRoles
             .Where(ur => ur.Warehouse is not null)
             .Select(ur => new WarehouseOptionDto(ur.Warehouse!.Id, ur.Warehouse.Code, ur.Warehouse.Name))
             .DistinctBy(w => w.Id)
             .ToList();
 
-        return new UserProfileDto(
-            user.Id, user.Email, user.DisplayName, user.CompanyId, user.Company?.Name,
-            user.IsPlatformAdmin, _current.Permissions.ToList(), warehouses);
+        return AuthProfileFactory.FromUser(user, _current.Permissions.ToList(), warehouses);
     }
 }

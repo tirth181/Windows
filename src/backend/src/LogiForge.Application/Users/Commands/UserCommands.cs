@@ -55,6 +55,7 @@ public class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, UserD
             PasswordHash = _hasher.Hash(request.Request.Password),
             AuthProvider = AuthProvider.Local,
             IsActive = true,
+            EmailVerified = true,
             CreatedBy = _tenant.UserId
         };
 

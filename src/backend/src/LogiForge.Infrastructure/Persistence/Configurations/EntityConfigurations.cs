@@ -14,6 +14,12 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
         b.Property(x => x.Code).HasMaxLength(50).IsRequired();
         b.HasIndex(x => x.Code).IsUnique();
         b.Property(x => x.Status).HasConversion<string>().HasMaxLength(30);
+        b.Property(x => x.PlanCode).HasMaxLength(50);
+        b.Property(x => x.StripeCustomerId).HasMaxLength(120);
+        b.Property(x => x.StripeSubscriptionId).HasMaxLength(120);
+        b.Property(x => x.StripePriceId).HasMaxLength(120);
+        b.Property(x => x.BillingEmail).HasMaxLength(320);
+        b.HasIndex(x => x.StripeCustomerId);
     }
 }
 
@@ -40,6 +46,10 @@ public class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
         b.Property(x => x.Email).HasMaxLength(320);
         b.Property(x => x.DisplayName).HasMaxLength(200);
         b.Property(x => x.AuthProvider).HasConversion<string>().HasMaxLength(30);
+        b.Property(x => x.EmailVerificationToken).HasMaxLength(120);
+        b.Property(x => x.PasswordResetToken).HasMaxLength(120);
+        b.HasIndex(x => x.EmailVerificationToken);
+        b.HasIndex(x => x.PasswordResetToken);
         b.HasOne(x => x.Company).WithMany(c => c.Users).HasForeignKey(x => x.CompanyId);
     }
 }

@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { Button, Input } from "@/components/ui";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
+import { allowDemoFallback } from "@/lib/demo-mode";
 import { useAuthStore } from "@/stores/auth-store";
 import type { AuthUser } from "@/types";
 
@@ -13,16 +15,24 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+type ApiUser = AuthUser & {
+  companyStatus?: string;
+  planCode?: string;
+  trialEndsAt?: string | null;
+  emailVerified?: boolean;
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const loginDemo = useAuthStore((s) => s.loginDemo);
   const login = useAuthStore((s) => s.login);
   const token = useAuthStore((s) => s.token);
   const hydrated = useAuthStore((s) => s.hydrated);
-  const [email, setEmail] = useState("admin@logiforge.demo");
-  const [password, setPassword] = useState("demo");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const demoOk = allowDemoFallback();
 
   useEffect(() => {
     if (hydrated && token) {
@@ -44,17 +54,50 @@ export default function LoginPage() {
       const result = await apiFetch<{
         accessToken: string;
         refreshToken?: string;
-        user: AuthUser;
+        user: ApiUser & {
+          warehouses?: { id: string; code: string; name: string }[];
+        };
       }>("/auth/login", {
         method: "POST",
         body: JSON.stringify(parsed.data),
       });
-      login(result.user, result.accessToken, result.refreshToken);
-      router.replace("/dashboard");
-    } catch {
-      // Demo mode — local sign-in when API is unavailable
-      loginDemo(parsed.data.email, "Alex Rivera");
-      router.replace("/dashboard");
+      login(
+        {
+          ...result.user,
+          id: String(result.user.id),
+          companyId: result.user.companyId ? String(result.user.companyId) : "",
+          companyName: result.user.companyName || "",
+          roles: result.user.roles || ["CompanyAdmin"],
+          permissions: result.user.permissions || [],
+        },
+        result.accessToken,
+        result.refreshToken,
+        (result.user.warehouses || []).map((w) => ({
+          id: String(w.id),
+          code: w.code,
+          name: w.name,
+        })),
+      );
+      const status = result.user.companyStatus;
+      router.replace(status === "Suspended" ? "/billing" : "/dashboard");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.detail || err.message);
+        if (!demoOk) {
+          setLoading(false);
+          return;
+        }
+      }
+      if (demoOk) {
+        loginDemo(parsed.data.email, "Alex Rivera");
+        router.replace("/dashboard");
+      } else {
+        setError(
+          err instanceof ApiError
+            ? err.detail || err.message
+            : "Unable to sign in. Check your connection and try again.",
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -62,8 +105,10 @@ export default function LoginPage() {
 
   function signInMicrosoft() {
     setError(null);
-    // Entra is not wired in this demo environment — sign in locally without
-    // navigating away (that hard navigation caused open/close bounce).
+    if (!demoOk) {
+      setError("Microsoft sign-in is not configured for this environment yet.");
+      return;
+    }
     loginDemo("entra.user@logiforge.demo", "Entra Operator");
     router.replace("/dashboard");
   }
@@ -82,7 +127,7 @@ export default function LoginPage() {
             LogiForge
           </h1>
           <p className="mt-3 text-base text-[var(--brand-steel)]">
-            Enterprise 3PL company operations
+            Sign in to your 3PL operations workspace
           </p>
         </div>
 
@@ -108,6 +153,14 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
           />
+          <div className="flex justify-end">
+            <Link
+              href="/forgot-password"
+              className="text-xs text-[var(--brand-steel)] underline-offset-2 hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
           {error ? (
             <p className="text-sm text-[var(--danger)]" role="alert">
               {error}
@@ -117,23 +170,32 @@ export default function LoginPage() {
             {loading ? "Signing in…" : "Sign in"}
           </Button>
 
-          <div className="relative py-1 text-center text-xs uppercase tracking-wider text-[var(--muted)]">
-            <span className="bg-[var(--surface-raised)] px-2 relative z-10">or</span>
-            <span className="absolute left-0 right-0 top-1/2 h-px bg-[var(--brand-steel)]/15" />
-          </div>
+          {demoOk ? (
+            <>
+              <div className="relative py-1 text-center text-xs uppercase tracking-wider text-[var(--muted)]">
+                <span className="bg-[var(--surface-raised)] px-2 relative z-10">or</span>
+                <span className="absolute left-0 right-0 top-1/2 h-px bg-[var(--brand-steel)]/15" />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                size="lg"
+                onClick={signInMicrosoft}
+              >
+                Sign in with Microsoft
+              </Button>
+              <p className="text-center text-xs text-[var(--muted)]">
+                Dev mode: offline demo sign-in is enabled when the API is down.
+              </p>
+            </>
+          ) : null}
 
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            size="lg"
-            onClick={signInMicrosoft}
-          >
-            Sign in with Microsoft
-          </Button>
-
-          <p className="text-center text-xs text-[var(--muted)]">
-            Demo mode works offline — any password signs you in when the API is down.
+          <p className="text-center text-sm text-[var(--brand-steel)]">
+            New to LogiForge?{" "}
+            <Link href="/signup" className="font-medium text-[var(--accent)] underline-offset-2 hover:underline">
+              Start a free trial
+            </Link>
           </p>
         </form>
       </div>

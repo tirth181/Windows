@@ -11,6 +11,7 @@ Enterprise AI-powered multi-tenant 3PL Warehouse Management Platform.
 | [Architecture](docs/ARCHITECTURE.md) | System design, tenancy, layers |
 | [Database Schema](docs/DATABASE_SCHEMA.md) | PostgreSQL model |
 | [API Design](docs/API_DESIGN.md) | REST endpoints |
+| [SaaS Deployment](docs/SAAS_DEPLOYMENT.md) | Signup, trials, Stripe, SMTP, prod env |
 | [UI/UX Design](docs/UI_UX_DESIGN.md) | Brand & UX principles |
 | [Implementation Plan](docs/IMPLEMENTATION_PLAN.md) | Phased delivery |
 | [Security](docs/SECURITY.md) | AuthN/Z and controls |
@@ -53,12 +54,14 @@ npm run dev
 | `admin@harborline.com` | `ChangeMe!Harbor12` | Company Administrator |
 | `floor@harborline.com` | `ChangeMe!Floor12` | Warehouse Associate |
 
-Demo tenant: **Harborline Logistics** · Warehouse **DFW1**
+Demo tenant: **Harborline Logistics**
+
+Self-serve: open `/signup` or `/pricing` for a 14-day trial. Configure Stripe/SMTP per [SaaS Deployment](docs/SAAS_DEPLOYMENT.md).
 
 ## Modules
 
 1. Dashboard · 2. Inbound · 3. Inventory · 4. Outbound · 5. Reports  
-6. Customers · 7. 3PL Companies · 8. Users · 9. Company · 10. AI Assistant  
+6. Customers · 7. 3PL Companies · 8. Users · 9. Billing · 10. AI Assistant  
 11. Integration Center · 12. Settings
 
 ## Security highlights

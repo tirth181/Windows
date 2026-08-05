@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import { getAccessToken, setTokens } from "@/lib/auth";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const token = useAuthStore((s) => s.token);
   const hydrated = useAuthStore((s) => s.hydrated);
+  const companyStatus = useAuthStore((s) => s.user?.companyStatus);
 
   useEffect(() => {
     // Ensure rehydrate runs even if AuthProvider mount order differs
@@ -25,8 +27,17 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
     if (!state.token) {
       router.replace("/login");
+      return;
     }
-  }, [hydrated, token, router]);
+    if (
+      state.user?.companyStatus === "Suspended" &&
+      pathname &&
+      !pathname.startsWith("/billing") &&
+      !pathname.startsWith("/settings")
+    ) {
+      router.replace("/billing");
+    }
+  }, [hydrated, token, router, pathname, companyStatus]);
 
   // Same placeholder on server and first client paint (hydrated starts false)
   if (!hydrated) {

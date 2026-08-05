@@ -74,6 +74,12 @@ builder.Services.AddRateLimiter(options =>
         opt.PermitLimit = 120;
         opt.QueueLimit = 0;
     });
+    options.AddFixedWindowLimiter("auth", opt =>
+    {
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.PermitLimit = 20;
+        opt.QueueLimit = 0;
+    });
 });
 
 builder.Services.AddHealthChecks()
@@ -89,6 +95,7 @@ app.UseCors("frontend");
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<SubscriptionGateMiddleware>();
 app.MapControllers().RequireRateLimiting("api");
 app.MapHealthChecks("/health/live");
 app.MapHealthChecks("/health/ready");

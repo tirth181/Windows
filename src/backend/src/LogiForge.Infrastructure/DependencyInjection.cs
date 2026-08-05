@@ -1,4 +1,5 @@
 using LogiForge.Application.Auth.Commands;
+using LogiForge.Application.Common;
 using LogiForge.Domain.Interfaces;
 using LogiForge.Infrastructure.Caching;
 using LogiForge.Infrastructure.Identity;
@@ -14,6 +15,10 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<AppOptions>(configuration.GetSection(AppOptions.SectionName));
+        services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.SectionName));
+        services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
+
         services.AddHttpContextAccessor();
         services.AddScoped<ITenantContext, TenantContext>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -28,6 +33,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthTokenService, AuthTokenService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IEmailService, EmailService>();
+        services.AddScoped<IStripeBillingService, StripeBillingService>();
         services.AddScoped<IExcelExportService, ExcelExportService>();
         services.AddScoped<IDocumentNumberGenerator, DocumentNumberGenerator>();
         services.AddScoped<IAiAssistantService, PermissionAwareAiAssistantService>();

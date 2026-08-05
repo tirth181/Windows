@@ -18,6 +18,7 @@ public static class DbSeeder
         var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DbSeeder");
 
         await db.Database.EnsureCreatedAsync();
+        await EnsureSchemaPatchesAsync(db, logger);
 
         if (!await db.Permissions.AnyAsync())
         {
@@ -42,6 +43,8 @@ public static class DbSeeder
             Name = "Harborline Logistics",
             Code = "HARBOR",
             Status = CompanyStatus.Active,
+            PlanCode = "growth",
+            BillingEmail = "admin@harborline.com",
             BrandingJson = """{"primary":"#0B1F33","accent":"#D97706"}"""
         };
         db.Companies.Add(company);
@@ -78,7 +81,8 @@ public static class DbSeeder
             DisplayName = "Alex Admin",
             PasswordHash = hasher.Hash("ChangeMe!Harbor12"),
             AuthProvider = AuthProvider.Local,
-            IsActive = true
+            IsActive = true,
+            EmailVerified = true
         };
         admin.UserRoles.Add(new UserRole { UserId = admin.Id, RoleId = adminRole.Id });
 
@@ -89,7 +93,8 @@ public static class DbSeeder
             DisplayName = "Sam Associate",
             PasswordHash = hasher.Hash("ChangeMe!Floor12"),
             AuthProvider = AuthProvider.Local,
-            IsActive = true
+            IsActive = true,
+            EmailVerified = true
         };
         associate.UserRoles.Add(new UserRole { UserId = associate.Id, RoleId = floorRole.Id, WarehouseId = wh.Id });
 
@@ -130,5 +135,36 @@ public static class DbSeeder
 
         await db.SaveChangesAsync();
         logger.LogInformation("Seeded demo tenant Harborline Logistics");
+    }
+
+    /// <summary>
+    /// EnsureCreated does not alter existing databases. Patch additive SaaS columns safely.
+    /// </summary>
+    private static async Task EnsureSchemaPatchesAsync(LogiForgeDbContext db, ILogger logger)
+    {
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync("""
+                ALTER TABLE companies ADD COLUMN IF NOT EXISTS "TrialEndsAt" timestamp with time zone NULL;
+                ALTER TABLE companies ADD COLUMN IF NOT EXISTS "PlanCode" character varying(50) NOT NULL DEFAULT 'trial';
+                ALTER TABLE companies ADD COLUMN IF NOT EXISTS "StripeCustomerId" character varying(120) NULL;
+                ALTER TABLE companies ADD COLUMN IF NOT EXISTS "StripeSubscriptionId" character varying(120) NULL;
+                ALTER TABLE companies ADD COLUMN IF NOT EXISTS "StripePriceId" character varying(120) NULL;
+                ALTER TABLE companies ADD COLUMN IF NOT EXISTS "CurrentPeriodEnd" timestamp with time zone NULL;
+                ALTER TABLE companies ADD COLUMN IF NOT EXISTS "BillingEmail" character varying(320) NULL;
+
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS "EmailVerified" boolean NOT NULL DEFAULT TRUE;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS "EmailVerificationToken" character varying(120) NULL;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS "EmailVerificationExpiresAt" timestamp with time zone NULL;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS "PasswordResetToken" character varying(120) NULL;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS "PasswordResetExpiresAt" timestamp with time zone NULL;
+                """);
+            logger.LogInformation("Applied SaaS schema patches");
+        }
+        catch (Exception ex)
+        {
+            // Fresh EnsureCreated already has columns; SQLite/local edge cases may fail — continue.
+            logger.LogDebug(ex, "Schema patch skipped or partially applied");
+        }
     }
 }

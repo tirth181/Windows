@@ -19,12 +19,27 @@ Idempotency: `Idempotency-Key` on receive/ship
 
 | Method | Path | Description |
 |--------|------|-------------|
+| POST | `/auth/register` | Self-serve signup (trial company + admin) |
 | POST | `/auth/login` | Local login |
+| POST | `/auth/verify-email` | Confirm email token |
+| POST | `/auth/forgot-password` | Request reset email |
+| POST | `/auth/reset-password` | Set new password with token |
 | POST | `/auth/refresh` | Refresh token |
 | POST | `/auth/logout` | Revoke refresh |
 | GET | `/auth/entra/challenge` | Start Entra OIDC |
 | GET | `/auth/entra/callback` | Entra callback |
 | GET | `/auth/me` | Current user + permissions + warehouses |
+
+## Billing
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/billing/status` | Trial/plan/Stripe status + catalog |
+| POST | `/billing/checkout` | Create Stripe Checkout session |
+| POST | `/billing/portal` | Create Stripe Customer Portal session |
+| POST | `/billing/webhook` | Stripe webhooks (anonymous, signed) |
+
+Suspended companies receive **402** on non-billing/auth APIs.
 
 ## Companies & Warehouses
 

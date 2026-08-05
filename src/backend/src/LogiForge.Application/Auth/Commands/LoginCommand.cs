@@ -1,5 +1,6 @@
 using LogiForge.Application.Auth.Dtos;
 using LogiForge.Domain.Entities;
+using LogiForge.Domain.Enums;
 using LogiForge.Domain.Exceptions;
 using LogiForge.Domain.Interfaces;
 using MediatR;
@@ -19,6 +20,24 @@ public interface IPasswordHasher
 {
     string Hash(string password);
     bool Verify(string password, string hash);
+}
+
+public static class AuthProfileFactory
+{
+    public static UserProfileDto FromUser(AppUser user, IReadOnlyList<string> permissions, IReadOnlyList<WarehouseOptionDto> warehouses)
+        => new(
+            user.Id,
+            user.Email,
+            user.DisplayName,
+            user.CompanyId,
+            user.Company?.Name,
+            user.IsPlatformAdmin,
+            permissions,
+            warehouses,
+            user.EmailVerified,
+            user.Company?.Status.ToString(),
+            user.Company?.PlanCode,
+            user.Company?.TrialEndsAt);
 }
 
 public class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
@@ -52,8 +71,16 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
             .Include(u => u.UserRoles).ThenInclude(ur => ur.Warehouse)
             .FirstOrDefaultAsync(u => u.Email == email && !u.IsDeleted, cancellationToken);
 
-        async Task Fail(string reason)
+        async Task Fail(string reason, bool bumpLockout = false)
         {
+            if (bumpLockout && user is not null)
+            {
+                user.FailedLoginAttempts += 1;
+                if (user.FailedLoginAttempts >= 5)
+                    user.LockoutEnd = DateTime.UtcNow.AddMinutes(15);
+                _users.Update(user);
+            }
+
             await _loginHistory.AddAsync(new LoginHistory
             {
                 UserId = user?.Id,
@@ -69,7 +96,7 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
 
         if (user is null || string.IsNullOrEmpty(user.PasswordHash) || !_hasher.Verify(request.Password, user.PasswordHash))
         {
-            await Fail("Invalid credentials");
+            await Fail("Invalid credentials", bumpLockout: user is not null);
             throw new DomainException("invalid_credentials", "Invalid email or password.");
         }
 
@@ -82,7 +109,20 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
         if (user.LockoutEnd is not null && user.LockoutEnd > DateTime.UtcNow)
         {
             await Fail("Locked out");
-            throw new DomainException("locked", "Account is temporarily locked.");
+            throw new DomainException("locked", "Account is temporarily locked. Try again later.");
+        }
+
+        if (!user.IsPlatformAdmin && !user.EmailVerified)
+        {
+            await Fail("Email not verified");
+            throw new DomainException("email_unverified", "Verify your email before signing in. Check your inbox for the link.");
+        }
+
+        // Suspended / expired-trial tenants may still sign in so they can open Billing.
+        if (!user.IsPlatformAdmin && user.Company is not null
+            && SyncTrialExpiry(user.Company))
+        {
+            await _uow.SaveChangesAsync(cancellationToken);
         }
 
         var permissions = user.IsPlatformAdmin
@@ -109,6 +149,7 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
             .ToList();
 
         user.FailedLoginAttempts = 0;
+        user.LockoutEnd = null;
         user.LastLoginAt = DateTime.UtcNow;
         _users.Update(user);
 
@@ -124,8 +165,19 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, LoginResponse>
         await _uow.SaveChangesAsync(cancellationToken);
 
         var (access, refresh, expires) = _tokens.IssueTokens(user, permissions);
-        return new LoginResponse(access, refresh, expires, new UserProfileDto(
-            user.Id, user.Email, user.DisplayName, user.CompanyId, user.Company?.Name,
-            user.IsPlatformAdmin, permissions, warehouses));
+        return new LoginResponse(access, refresh, expires, AuthProfileFactory.FromUser(user, permissions, warehouses));
+    }
+
+    /// <summary>Sync trial expiry without blocking (for /me and billing). Returns true when mutated.</summary>
+    public static bool SyncTrialExpiry(Company company)
+    {
+        if (company.Status == CompanyStatus.Trial
+            && company.TrialEndsAt is not null
+            && company.TrialEndsAt < DateTime.UtcNow)
+        {
+            company.Status = CompanyStatus.Suspended;
+            return true;
+        }
+        return false;
     }
 }

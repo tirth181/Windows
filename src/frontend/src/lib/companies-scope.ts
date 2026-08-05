@@ -73,6 +73,14 @@ function findCompanyForUser(user: AuthUser | null | undefined): Company {
   );
 }
 
+const GUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** True when the session is backed by the real API tenant (not demo store). */
+export function isApiTenantUser(user: AuthUser | null | undefined): boolean {
+  return !!user?.companyId && GUID_RE.test(user.companyId);
+}
+
 /** Map a signed-in user to the single 3PL company context they operate in. */
 export function resolveUserCompany(user: AuthUser | null | undefined): {
   companyId: string;
@@ -80,6 +88,25 @@ export function resolveUserCompany(user: AuthUser | null | undefined): {
   companyCode: string;
   warehouse: Warehouse;
 } {
+  // Real API tenants: never remap onto local demo company records.
+  if (isApiTenantUser(user)) {
+    const code = (user!.companyName || "3PL")
+      .replace(/[^A-Za-z0-9]/g, "")
+      .slice(0, 8)
+      .toUpperCase() || "3PL";
+    return {
+      companyId: user!.companyId,
+      companyName: user!.companyName || "Company",
+      companyCode: code,
+      warehouse: {
+        id: user!.companyId,
+        code,
+        name: user!.companyName || "Company",
+        timezone: "UTC",
+      },
+    };
+  }
+
   const company = findCompanyForUser(user);
   const warehouse = warehouseForCompany(company);
   return {
@@ -91,6 +118,12 @@ export function resolveUserCompany(user: AuthUser | null | undefined): {
 }
 
 /** Only the caller's 3PL company — used for receiving/shipping selectors. */
-export function companiesForUser(user: AuthUser | null | undefined): Warehouse[] {
+export function companiesForUser(
+  user: AuthUser | null | undefined,
+  apiWarehouses?: Warehouse[] | null,
+): Warehouse[] {
+  if (isApiTenantUser(user) && apiWarehouses && apiWarehouses.length > 0) {
+    return apiWarehouses;
+  }
   return [resolveUserCompany(user).warehouse];
 }

@@ -86,9 +86,8 @@ public class AuthTokenService : IAuthTokenService
             .Select(ur => new WarehouseOptionDto(ur.Warehouse!.Id, ur.Warehouse.Code, ur.Warehouse.Name))
             .DistinctBy(w => w.Id).ToList();
 
-        return new LoginResponse(access, refresh, expires, new UserProfileDto(
-            user.Id, user.Email, user.DisplayName, user.CompanyId, user.Company?.Name,
-            user.IsPlatformAdmin, permissions, warehouses));
+        return new LoginResponse(access, refresh, expires,
+            AuthProfileFactory.FromUser(user, permissions, warehouses));
     }
 }
 

@@ -18,7 +18,12 @@ interface AuthState {
   hydrated: boolean;
   setHydrated: (value: boolean) => void;
   loginDemo: (email: string, displayName?: string) => void;
-  login: (user: AuthUser, token: string, refreshToken?: string) => void;
+  login: (
+    user: AuthUser,
+    token: string,
+    refreshToken?: string,
+    warehouses?: Warehouse[],
+  ) => void;
   logout: () => void;
   hasPermission: (code: string) => boolean;
   setSelectedWarehouse: (id: string) => void;
@@ -51,8 +56,11 @@ function buildDemoUser(email: string, displayName?: string): AuthUser {
   };
 }
 
-function applyCompanyScope(user: AuthUser | null) {
-  const scoped = companiesForUser(user);
+function applyCompanyScope(
+  user: AuthUser | null,
+  apiWarehouses?: Warehouse[] | null,
+) {
+  const scoped = companiesForUser(user, apiWarehouses);
   return {
     warehouses: scoped,
     selectedWarehouseId: scoped[0]?.id ?? null,
@@ -79,7 +87,7 @@ export const useAuthStore = create<AuthState>()(
           ...applyCompanyScope(user),
         });
       },
-      login: (user, token, refreshToken) => {
+      login: (user, token, refreshToken, warehouses) => {
         setTokens(token, refreshToken);
         clearAuthBounceGuard();
         const resolved = resolveUserCompany(user);
@@ -91,7 +99,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: scopedUser,
           token,
-          ...applyCompanyScope(scopedUser),
+          ...applyCompanyScope(scopedUser, warehouses),
         });
       },
       logout: () => {

@@ -17,6 +17,10 @@ export interface AuthUser {
   companyName: string;
   roles: string[];
   permissions: string[];
+  emailVerified?: boolean;
+  companyStatus?: string;
+  planCode?: string;
+  trialEndsAt?: string | null;
 }
 
 export interface Warehouse {
