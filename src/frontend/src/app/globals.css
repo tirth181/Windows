@@ -1,0 +1,144 @@
+@import "tailwindcss";
+@import "ag-grid-community/styles/ag-grid.css";
+@import "ag-grid-community/styles/ag-theme-quartz.css";
+
+:root {
+  --brand-ink: #0b1f33;
+  --brand-steel: #1e3a54;
+  --accent: #d97706;
+  --surface: #f3f6f9;
+  --surface-raised: #ffffff;
+  --success: #0f766e;
+  --warning: #b45309;
+  --danger: #b91c1c;
+  --text: #0f172a;
+  --muted: #64748b;
+  --background: var(--surface);
+  --foreground: var(--text);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-steel: var(--brand-steel);
+  --color-accent: var(--accent);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-muted: var(--muted);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  background: var(--surface);
+  font-family: var(--font-ui), "IBM Plex Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, white);
+}
+
+/* Steel-to-sky atmosphere + blueprint grid */
+.lf-atmosphere {
+  background:
+    linear-gradient(
+      155deg,
+      #dce7f1 0%,
+      #eef3f8 38%,
+      #f3f6f9 68%,
+      #e8eef5 100%
+    );
+  position: relative;
+}
+
+.lf-atmosphere::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.07;
+  background-image:
+    linear-gradient(var(--brand-steel) 1px, transparent 1px),
+    linear-gradient(90deg, var(--brand-steel) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse at 30% 20%, black 20%, transparent 70%);
+}
+
+.lf-app-shell {
+  background:
+    linear-gradient(180deg, #e8eef5 0%, var(--surface) 220px, var(--surface) 100%);
+  position: relative;
+}
+
+.lf-app-shell::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.035;
+  background-image:
+    linear-gradient(var(--brand-steel) 1px, transparent 1px),
+    linear-gradient(90deg, var(--brand-steel) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.lf-app-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* AG Grid — Partial inventory highlight */
+.ag-theme-quartz {
+  --ag-font-family: var(--font-ui), "IBM Plex Sans", sans-serif;
+  --ag-border-color: color-mix(in srgb, var(--brand-steel) 15%, transparent);
+  --ag-header-background-color: #eef3f8;
+  --ag-odd-row-background-color: #fafcfd;
+  --ag-selected-row-background-color: color-mix(in srgb, var(--accent) 12%, white);
+  --ag-row-hover-color: color-mix(in srgb, var(--brand-steel) 6%, white);
+  --ag-alpine-active-color: var(--accent);
+}
+
+.ag-theme-quartz .lf-row-partial {
+  box-shadow: inset 4px 0 0 var(--warning);
+  background-color: color-mix(in srgb, var(--warning) 6%, white) !important;
+}
+
+.ag-theme-quartz .ag-header-cell-label {
+  font-weight: 600;
+  color: var(--brand-ink);
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Never print the app chrome — inbound receipts print via a dedicated iframe. */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+}
