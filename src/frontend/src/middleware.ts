@@ -10,6 +10,27 @@ function timingSafeEqual(a: string, b: string): boolean {
   return out === 0;
 }
 
+/** Build a public absolute URL that respects reverse-proxy / tunnel headers. */
+function publicUrl(request: NextRequest, pathname: string, search?: string): URL {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = (forwardedHost || request.headers.get("host") || "localhost").split(",")[0].trim();
+  const protoHeader = request.headers.get("x-forwarded-proto");
+  const proto = (protoHeader || (host.includes("localhost") ? "http" : "https"))
+    .split(",")[0]
+    .trim();
+
+  const url = new URL(request.url);
+  url.protocol = `${proto}:`;
+  url.host = host;
+  // Drop explicit localhost ports when behind a public HTTPS tunnel
+  if (!host.includes("localhost") && !/^\d+\.\d+\.\d+\.\d+/.test(host)) {
+    url.port = "";
+  }
+  url.pathname = pathname;
+  url.search = search || "";
+  return url;
+}
+
 export function middleware(request: NextRequest) {
   const accessCode = process.env.PREVIEW_ACCESS_CODE?.trim();
   // When unset, gate is disabled (local/dev). Production preview always sets it.
@@ -32,10 +53,13 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const url = request.nextUrl.clone();
-  url.pathname = "/access";
-  url.searchParams.set("next", pathname);
-  return NextResponse.redirect(url);
+  const nextParam = pathname.startsWith("/") ? pathname : "/login";
+  const target = publicUrl(
+    request,
+    "/access",
+    `?next=${encodeURIComponent(nextParam)}`,
+  );
+  return NextResponse.redirect(target);
 }
 
 export const config = {
