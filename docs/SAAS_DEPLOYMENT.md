@@ -76,3 +76,31 @@ cd src/frontend && npm run dev
 ```
 
 Open `/signup`, create a company (verification off in default `appsettings.json`), then use **Billing** to inspect trial status.
+
+## One-command live deploy (this environment)
+
+```bash
+# Optional Stripe (creates Starter/Growth prices automatically)
+export STRIPE_SECRET_KEY=sk_test_...
+export STRIPE_WEBHOOK_SECRET=whsec_...   # after Dashboard webhook is created
+
+bash scripts/deploy-live.sh
+```
+
+What it does:
+- Generates a strong `Jwt__Key` under `.local-secrets/` (gitignored)
+- Wires SMTP (Ethereal by default so the send path is real)
+- Builds Next with `NEXT_PUBLIC_ALLOW_DEMO_FALLBACK=false`
+- Runs Release API on `127.0.0.1:5080` + Next on `127.0.0.1:3000`
+- Publishes HTTPS via Cloudflare quick tunnel
+- Sets `App__PublicWebBaseUrl` + CORS to that public URL
+- Writes credentials to `/opt/cursor/artifacts/LIVE_CREDENTIALS.txt`
+
+Provision Stripe catalog only:
+
+```bash
+export STRIPE_SECRET_KEY=sk_test_...
+bash scripts/provision-stripe.sh
+```
+
+Then point Stripe webhook to `https://<your-host>/api/v1/billing/webhook`.
