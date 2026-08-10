@@ -35,7 +35,7 @@ export default function LandingPage() {
             <Link href="/signup" className="btn btn-primary">
               Create free account <ArrowRight size={16} />
             </Link>
-            <Link href="/login" className="btn btn-secondary">
+            <Link href="/demo" className="btn btn-secondary">
               Try demo workspace
             </Link>
           </div>

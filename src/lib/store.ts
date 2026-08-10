@@ -355,7 +355,13 @@ export const useAppStore = create<Store>()(
       seedDemo: () => {
         const existing = get().users.find((u) => u.email === "demo@fynvo.app");
         if (existing) {
-          set({ sessionUserId: existing.id });
+          // Keep demo credentials predictable even if older local data drifted.
+          set((s) => ({
+            sessionUserId: existing.id,
+            users: s.users.map((u) =>
+              u.id === existing.id ? { ...u, password: "demo123", email: "demo@fynvo.app" } : u,
+            ),
+          }));
           return;
         }
         const orgId = uid("org");
