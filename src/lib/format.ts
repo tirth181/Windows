@@ -3,7 +3,8 @@ import type { Invoice, LineItem } from "./types";
 
 export function money(amount: number, currency = "USD"): string {
   try {
-    return new Intl.NumberFormat(undefined, {
+    // Fixed locale so SSR and client always render the same string.
+    return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency,
       maximumFractionDigits: 2,

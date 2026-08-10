@@ -162,7 +162,7 @@ export default function LandingPage() {
 
       <footer className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-10 text-sm text-muted md:flex-row md:items-center md:justify-between">
         <p className="display text-lg font-800 text-ink">Fynvo</p>
-        <p>© {new Date().getFullYear()} Fynvo. Independent product. Not affiliated with Zoho or any third-party invoice brand.</p>
+        <p>© 2026 Fynvo. Independent product. Not affiliated with Zoho or any third-party invoice brand.</p>
       </footer>
     </div>
   );

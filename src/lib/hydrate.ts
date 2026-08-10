@@ -3,21 +3,41 @@
 import { useSyncExternalStore } from "react";
 import { useAppStore } from "./store";
 
-/** True after zustand persist has finished loading from localStorage. */
+/**
+ * Stays false during SSR and the hydration render, then becomes true after a
+ * microtask once the client is mounted and zustand persist has loaded.
+ * This keeps server HTML and the first client render identical.
+ */
+let clientReady = false;
+const listeners = new Set<() => void>();
+
+function emit() {
+  listeners.forEach((listener) => listener());
+}
+
+function subscribe(onChange: () => void) {
+  listeners.add(onChange);
+  if (!clientReady) {
+    queueMicrotask(() => {
+      clientReady = true;
+      emit();
+    });
+  }
+  const unsubPersist = useAppStore.persist.onFinishHydration(() => emit());
+  return () => {
+    listeners.delete(onChange);
+    unsubPersist();
+  };
+}
+
+function getSnapshot() {
+  return clientReady && useAppStore.persist.hasHydrated();
+}
+
+function getServerSnapshot() {
+  return false;
+}
+
 export function useHasHydrated() {
-  return useSyncExternalStore(
-    (onStoreChange) => {
-      const unsubFinish = useAppStore.persist.onFinishHydration(onStoreChange);
-      const unsubStart = useAppStore.persist.onHydrate(onStoreChange);
-      if (useAppStore.persist.hasHydrated()) {
-        queueMicrotask(onStoreChange);
-      }
-      return () => {
-        unsubFinish();
-        unsubStart();
-      };
-    },
-    () => useAppStore.persist.hasHydrated(),
-    () => false,
-  );
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
